@@ -118,19 +118,19 @@ class Context:
         }
     
     # ------- NEW: scenario flags (optional) -----------------
-    def set_scenario(self, *, universal_health=False):
+    def set_scenario(self, *, policy_inclusive_healthcare=False):
         """
         Set legal-norm toggles or resource knobs that influence the
         transition probabilities.
-        Example: universal_health=True ⇒ every PEH gets p_treat = 1.0
+        Example: policy_inclusive_healthcare=True ⇒ every PEH gets p_treat = 1.0
         """
-        self.universal_health = universal_health
+        self.policy_inclusive_healthcare = policy_inclusive_healthcare
 
     # ------- NEW: table builder -----------------------------
     def build_transition_table(self, peh_agent) -> dict:
         """
         Return a dict  health_P[(h, admin, action)] = [(p, next_h, r), …]
-        The logic can branch on self.universal_health, budgets, etc.
+        The logic can branch on self.policy_inclusive_healthcare, budgets, etc.
         """
         health_P = {}
         actions = [a.value for a in Actions]
@@ -152,7 +152,7 @@ class Context:
                         if a == Actions.RECEIVE_MEDICAL_ATTENTION.value:
                             # ----- legal norm demo --------------------
                             p_treat = 1.0 if (admin == "registered"
-                                            or getattr(self, "universal_health", False)) else 0.0
+                                            or getattr(self, "policy_inclusive_healthcare", False)) else 0.0
                             nh_good = min(h + peh_agent.health_update, peh_agent.max_health)
                             nh_bad  = max(h - peh_agent.health_step, peh_agent.min_health)
                             r_fail = -1.0 if nh_bad == peh_agent.min_health else -0.05

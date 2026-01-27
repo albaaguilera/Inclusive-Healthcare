@@ -13,7 +13,7 @@ from environment.context import Context, ACTION_NAMES, Actions
 
 # ── paràmetres bàsics ────────────────────────────────────────
 size = 6
-universal_health = False  # True: legal norm OFF, False: legal norm ON
+universal_health = False  # True: policy ON, False: policy OFF
 
 # --- mida dels rombos i layout vertical (un sol lloc) ---
 NODE_SCALE = 7.0  # 6–9 dóna bons resultats

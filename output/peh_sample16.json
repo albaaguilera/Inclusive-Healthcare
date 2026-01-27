@@ -1,0 +1,178 @@
+[
+  {
+    "person_id": 16,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 42.0,
+    "gender": "male",
+    "income": 738.2179567702256,
+    "homelessness_duration": 13.0,
+    "history_of_abuse": 0.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 236,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 54.0,
+    "gender": "male",
+    "income": 241.9656647780589,
+    "homelessness_duration": 10.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 213,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 56.0,
+    "gender": "male",
+    "income": 517.9297971034259,
+    "homelessness_duration": 10.0,
+    "history_of_abuse": 0.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 47,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 61.0,
+    "gender": "male",
+    "income": 109.64090530870925,
+    "homelessness_duration": 15.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 2,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 30.0,
+    "gender": "female",
+    "income": 152.7248882408977,
+    "homelessness_duration": 1.0,
+    "history_of_abuse": 0.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 35,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 32.0,
+    "gender": "male",
+    "income": 272.1377448988312,
+    "homelessness_duration": 3.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 189,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 48.0,
+    "gender": "male",
+    "income": 410.4828348719578,
+    "homelessness_duration": 3.0,
+    "history_of_abuse": 0.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 81,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "NON_REGISTERED",
+    "age": 38.0,
+    "gender": "male",
+    "income": 361.9579310611409,
+    "homelessness_duration": 6.0,
+    "history_of_abuse": 0.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 143,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 70.0,
+    "gender": "female",
+    "income": 478.93534137603956,
+    "homelessness_duration": 12.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 223,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 39.0,
+    "gender": "female",
+    "income": 580.0099443027744,
+    "homelessness_duration": 8.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 9,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 60.0,
+    "gender": "male",
+    "income": 265.66920107056495,
+    "homelessness_duration": 10.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 296,
+    "trust_type": "LOW_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 46.0,
+    "gender": "female",
+    "income": 103.69786959172978,
+    "homelessness_duration": 14.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 10,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 33.0,
+    "gender": "male",
+    "income": 631.2123627401323,
+    "homelessness_duration": 1.0,
+    "history_of_abuse": 0.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 39,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 32.0,
+    "gender": "male",
+    "income": 285.31667139693855,
+    "homelessness_duration": 6.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 227,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 36.0,
+    "gender": "male",
+    "income": 289.07562256403156,
+    "homelessness_duration": 4.0,
+    "history_of_abuse": 0.0,
+    "health_state": 3.0
+  },
+  {
+    "person_id": 149,
+    "trust_type": "MODERATE_TRUST",
+    "admin_state": "REGISTERED",
+    "age": 45.0,
+    "gender": "male",
+    "income": 433.3531335869739,
+    "homelessness_duration": 5.0,
+    "history_of_abuse": 1.0,
+    "health_state": 3.0
+  }
+]

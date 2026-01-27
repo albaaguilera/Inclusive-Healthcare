@@ -25,7 +25,7 @@ from matplotlib import patches
 from gymnasium import spaces
 
 # --- Your environment imports (as in your current project) ---
-from CASimulation.environment.model import GridMAInequityEnv
+from environment.model import GridMAInequityEnv
 from environment.context import Context, Actions, update_all_capability_scores
 from environment.agent import PEHAgent, SocServAgent
 
@@ -640,9 +640,9 @@ out = {
     "X_mean": calib["X_mean"].tolist(),
     "X_std": calib["X_std"].tolist(),
 }
-with open("irl_calibration_results_raval.json", "w") as f:
+with open("output/irl_calibration_results_raval.json", "w") as f:
     json.dump(out, f, indent=2)
-print("✓ Saved: irl_calibration_results_raval.json")
+print("✓ Saved: output/irl_calibration_results_raval.json")
 plot_prior_vs_posterior(calib, prior_mu=None, prior_sigma=2.0)
 
 # One row per agent (person)
@@ -714,7 +714,7 @@ print("\nProfiles4 dicts:")
 for p in profiles4:
     print(p)
 import json
-with open("peh_sample4.json", "w") as f:
+with open("output/peh_sample4.json", "w") as f:
     json.dump(profiles4, f, indent=2)
 
 
@@ -760,7 +760,7 @@ print("\nProfiles16 dicts:")
 for p in profiles16:
     print(p)
 
-with open("peh_sample16.json", "w") as f:
+with open("output/peh_sample16.json", "w") as f:
     json.dump(profiles16, f, indent=2)
 
 
@@ -805,6 +805,6 @@ print("\nProfiles8 dicts:")
 for p in profiles8:
     print(p)
 
-with open("peh_sample8.json", "w") as f:
+with open("output/peh_sample8.json", "w") as f:
     json.dump(profiles8, f, indent=2)
 

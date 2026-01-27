@@ -1,0 +1,144 @@
+{
+  "run_id": "run_001",
+  "scenario": "legal_norm_ON",
+  "policy_tag": "eval_policyON",
+  "total_steps": 28,
+  "initial_admin": {
+    "peh_0": "non-registered",
+    "peh_1": "non-registered",
+    "peh_2": "non-registered",
+    "peh_3": "non-registered",
+    "peh_4": "registered",
+    "peh_5": "registered",
+    "peh_6": "registered",
+    "peh_7": "registered"
+  },
+  "initial_trust": {
+    "peh_0": "LOW_TRUST",
+    "peh_1": "LOW_TRUST",
+    "peh_2": "MODERATE_TRUST",
+    "peh_3": "MODERATE_TRUST",
+    "peh_4": "LOW_TRUST",
+    "peh_5": "LOW_TRUST",
+    "peh_6": "MODERATE_TRUST",
+    "peh_7": "MODERATE_TRUST"
+  },
+  "final_states": {
+    "peh_0": {
+      "final_health": 1.0,
+      "final_admin": "non-registered",
+      "final_engagement_counter": 1,
+      "final_non_engagement_counter": 0,
+      "final_location": [
+        6,
+        6
+      ]
+    },
+    "peh_1": {
+      "final_health": 1.0,
+      "final_admin": "non-registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 0,
+      "final_location": [
+        6,
+        2
+      ]
+    },
+    "peh_2": {
+      "final_health": 1.0,
+      "final_admin": "non-registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 0,
+      "final_location": [
+        2,
+        6
+      ]
+    },
+    "peh_3": {
+      "final_health": 1.0,
+      "final_admin": "non-registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 1,
+      "final_location": [
+        4,
+        1
+      ]
+    },
+    "peh_4": {
+      "final_health": 4.0,
+      "final_admin": "registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 0,
+      "final_location": [
+        3,
+        6
+      ]
+    },
+    "peh_5": {
+      "final_health": 4.0,
+      "final_admin": "registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 0,
+      "final_location": [
+        2,
+        0
+      ]
+    },
+    "peh_6": {
+      "final_health": 1.0,
+      "final_admin": "non-registered",
+      "final_engagement_counter": 1,
+      "final_non_engagement_counter": 1,
+      "final_location": [
+        2,
+        2
+      ]
+    },
+    "peh_7": {
+      "final_health": 4.0,
+      "final_admin": "registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 0,
+      "final_location": [
+        6,
+        5
+      ]
+    }
+  },
+  "static_context": {
+    "grid_size": 7,
+    "locations": {
+      "PHC": {
+        "pos": [
+          0,
+          0
+        ],
+        "size": [
+          2,
+          2
+        ]
+      },
+      "ICU": {
+        "pos": [
+          5,
+          0
+        ],
+        "size": [
+          2,
+          2
+        ]
+      },
+      "SocialService": {
+        "pos": [
+          0,
+          5
+        ],
+        "size": [
+          2,
+          2
+        ]
+      }
+    }
+  },
+  "sw_rows_count": 435
+}

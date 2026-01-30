@@ -27,7 +27,7 @@ from learning.utils import (
 size = 7 # this should be fixed to 7 for the Raval scenario
 num_peh = 8
 num_sw = 15 # amb 8 PEH i 10 SW va bé (algun es pot quedar sense sw attention, 15SW ens assegurem que no), amb 16 PEH i 20 o 25SW ja no, politiques optimes es perden
-policy_inclusive_healthcare = False  # True: POLICY ON, False: POLICY OFF
+#policy_inclusive_healthcare = False  # True: POLICY ON, False: POLICY OFF
 
 import json
 if num_peh == 4:
@@ -75,7 +75,7 @@ os.makedirs(FIGDIR, exist_ok=True)
 os.makedirs(DATADIR, exist_ok=True)
 os.makedirs(MODELDIR, exist_ok=True)
 
-train_episode_rows = []   # per episodi
+train_episode_rows_ON = []   # per episodi
 eval_step_rows = []       # per step (avaluació)
 eval_policyON_rows = []      # resum final per agent (avaluació)
 eval_policyOFF_rows = []     # resum final per agent (avaluació)
@@ -92,11 +92,23 @@ feature_cols = [
     "age",
     "income",
 ]
+# ============ POLICY ON TRAINING ============
+print("\n" + "="*80)
+print("TRAINING: POLICY INCLUSIVE HEALTHCARE = ON")
+print("="*80)
 # ── crea entorn ──────────────────────────────────────────────
+# POLICY ON 
 ctx = Context(grid_size=size)
-ctx.set_scenario(policy_inclusive_healthcare=policy_inclusive_healthcare)
+ctx.set_scenario(policy_inclusive_healthcare=True)
 env = GridMAInequityEnv(context=ctx, render_mode=None, size=size, num_peh=len(profiles), num_social_agents= num_sw, peh_profiles=profiles, max_steps = 150)
 env.reset(options={"peh_profiles": profiles})# train always with the same profiles
+#env.context.set_scenario(policy_inclusive_healthcare=True)
+
+# DEBUG PRINTS
+print(f"DEBUG: policy_inclusive_healthcare = {env.context.policy_inclusive_healthcare}")
+if hasattr(env.peh_agents[0], 'can_access_healthcare'):
+    print(f"DEBUG: Agent 0 can_access_healthcare = {env.peh_agents[0].can_access_healthcare}")
+
 
 # ── Q-tables per agent ───────────────────────────────────────
 MAX_ENC = 10
@@ -108,7 +120,6 @@ q_tables_advice_ON = {}
 for a in env.possible_agents:
     shape = (env.size, env.size, n_health, 2, 2, MAX_ENC+1, MAX_NONENG+1, env.action_space(a).n)
     q_tables_advice_ON[a] = np.zeros(shape)
-
 # ── hiperparàmetres ──────────────────────────────────────────
 episodes = 400
 alpha, gamma = 0.2, 0.99
@@ -116,7 +127,7 @@ epsilon, eps_min, eps_decay = 0.1, 0.01, 0.995
 max_steps = 100
 
 episode_returns = []
-episode_returns_by_group = {
+episode_returns_by_group_ON = {
     "NONREG_LOW": [],
     "NONREG_MOD": [],
     "REG_LOW": [],
@@ -216,33 +227,33 @@ for ep in range(episodes):
     epsilon = max(eps_min, epsilon * eps_decay)
 
     # rewards per grup (admin x trust) segons estat inicial de l'episodi
-    group_totals = {k: 0.0 for k in episode_returns_by_group.keys()}
-    group_counts = {k: 0   for k in episode_returns_by_group.keys()}
+    group_totals = {k: 0.0 for k in episode_returns_by_group_ON.keys()}
+    group_counts = {k: 0   for k in episode_returns_by_group_ON.keys()}
 
     for agent, ret in ep_ret.items():
         g = init_group[agent]
         group_totals[g] += ret
         group_counts[g] += 1
 
-    for k in episode_returns_by_group.keys():
+    for k in episode_returns_by_group_ON.keys():
         if group_counts[k] > 0:
-            episode_returns_by_group[k].append(group_totals[k] / group_counts[k])  # MEAN
+            episode_returns_by_group_ON[k].append(group_totals[k] / group_counts[k])  # MEAN
         else:
-            episode_returns_by_group[k].append(0.0)
+            episode_returns_by_group_ON[k].append(0.0)
     
-    train_episode_rows.append({
+    train_episode_rows_ON.append({
             "run_id": RUN_ID,
+            "scenario": "ON",
             "episode": ep,
             "epsilon": float(epsilon),
             "total_reward": float(sum(ep_ret.values())),
-            "mean_reward_nonreg_low": float(episode_returns_by_group["NONREG_LOW"][-1]),
-            "mean_reward_nonreg_mod": float(episode_returns_by_group["NONREG_MOD"][-1]),
-            "mean_reward_reg_low": float(episode_returns_by_group["REG_LOW"][-1]),
-            "mean_reward_reg_mod": float(episode_returns_by_group["REG_MOD"][-1]),
+            "mean_reward_nonreg_low": float(episode_returns_by_group_ON["NONREG_LOW"][-1]),
+            "mean_reward_nonreg_mod": float(episode_returns_by_group_ON["NONREG_MOD"][-1]),
+            "mean_reward_reg_low": float(episode_returns_by_group_ON["REG_LOW"][-1]),
+            "mean_reward_reg_mod": float(episode_returns_by_group_ON["REG_MOD"][-1]),
         })
 
-plot_rewards_by_group(episode_returns_by_group, w=10)
-
+plot_rewards_by_group(episode_returns_by_group_ON, w=10)
 
 # POLICY ON
 # ─────────────────────────────────────────────────────────────
@@ -250,10 +261,12 @@ plot_rewards_by_group(episode_returns_by_group, w=10)
 # ─────────────────────────────────────────────────────────────
 from collections import Counter
 ctx = Context(grid_size=size)
-ctx.set_scenario(policy_inclusive_healthcare=policy_inclusive_healthcare)
+ctx.set_scenario(policy_inclusive_healthcare=True)
 eval_env = GridMAInequityEnv(context=ctx, render_mode=None, size=size, num_peh=len(profiles),num_social_agents= num_sw, peh_profiles=profiles)
 eval_env.reset(options={"peh_profiles": profiles})
+env.context.set_scenario(policy_inclusive_healthcare=True)
 
+print(f"\nDEBUG [EVAL ON]: policy = {eval_env.context.policy_inclusive_healthcare}")
 
 print("\n=== INIT CHECK (EVAL) ===")
 # quants social agents assignats a cada PEH
@@ -327,7 +340,7 @@ MAX_EVAL_GLOBAL_STEPS = 500
 eval_steps = 0
 init_health_budget_on = float(eval_env.context.healthcare_budget)
 init_social_budget_on = float(eval_env.context.social_service_budget)
-
+epsilon = 0.1
 while eval_env.agents and eval_steps < MAX_EVAL_GLOBAL_STEPS:
     eval_steps += 1
     agent = eval_env.agent_selection
@@ -390,7 +403,6 @@ while eval_env.agents and eval_steps < MAX_EVAL_GLOBAL_STEPS:
     print(f"[EVAL] step={eval_steps:04d} ag={agent} grp={group_key_from_initial(initial_admin_state, initial_trust_type, agent)} "
         f"a={Actions(action).name} h={new_h:.2f} admin={new_admin} r={r:.3f} done={d} term={t} trunc={tr}")
 
-    
     eval_step_rows.append({
         "run_id": RUN_ID,
         "step": eval_steps,
@@ -411,6 +423,10 @@ while eval_env.agents and eval_steps < MAX_EVAL_GLOBAL_STEPS:
     caps = eval_env.capabilities[agent]
     bh_trace[agent].append(caps.get("Bodily Health", 0.0))
     af_trace[agent].append(caps.get("Affiliation", 0.0))
+    caps = eval_env.capabilities.get(agent, {}) if hasattr(eval_env, "capabilities") else {}
+    eval_step_rows[-1]["cap_bh"] = float(caps.get("Bodily Health", np.nan))
+    eval_step_rows[-1]["cap_af"] = float(caps.get("Affiliation", np.nan))
+
     if agent == nonreg_agent_id:
         bh_turns.append(bh_trace[agent][-1])
         af_turns.append(af_trace[agent][-1])
@@ -680,61 +696,69 @@ def _plot_functionings(ax, health_state_trace, admin_state_trace, initial_admin_
 
 #save_results_summary()
 # ========================================================================
-
-# POLICY OFF
-policy_inclusive_healthcare = True  # desactiva la política
-
+# ============ POLICY OFF TRAINING ============
+print("\n" + "="*80)
+print("TRAINING: POLICY INCLUSIVE HEALTHCARE = OFF")
+print("="*80)
+policy_inclusive_healthcare = False  # desactiva la política
+train_episodes_rows_OFF = []
 
 # ── crea entorn ──────────────────────────────────────────────
 ctx2 = Context(grid_size=size)
 ctx2.set_scenario(policy_inclusive_healthcare=policy_inclusive_healthcare)
-env = GridMAInequityEnv(context=ctx2, render_mode=None, size=size, num_peh=len(profiles), num_social_agents= num_sw, peh_profiles=profiles, max_steps = 300)
-env.reset(options={"peh_profiles": profiles})# train always with the same profiles
+env2 = GridMAInequityEnv(context=ctx2, render_mode=None, size=size, num_peh=len(profiles), num_social_agents= num_sw, peh_profiles=profiles, max_steps = 300)
+env2.reset(options={"peh_profiles": profiles})# train always with the same profiles
+#env.context.set_scenario(policy_inclusive_healthcare=policy_inclusive_healthcare)
+
+# DEBUG PRINTS
+print(f"DEBUG: policy_inclusive_healthcare = {env2.context.policy_inclusive_healthcare}")
+if hasattr(env2.peh_agents[0], 'can_access_healthcare'):
+    print(f"DEBUG: Agent 0 can_access_healthcare = {env2.peh_agents[0].can_access_healthcare}")
 
 # ── Q-tables per agent ───────────────────────────────────────
 
 MAX_ENC = 10
 MAX_NONENG = 10
 
-n_health = int((env.peh_agents[0].max_health - env.peh_agents[0].min_health) / env.peh_agents[0].health_step) + 1
+n_health = int((env2.peh_agents[0].max_health - env2.peh_agents[0].min_health) / env2.peh_agents[0].health_step) + 1
 
 q_tables_advice_OFF = {}
 
-for a in env.possible_agents:
-    shape = (env.size, env.size, n_health, 2, 2, MAX_ENC+1, MAX_NONENG+1, env.action_space(a).n)
+for a in env2.possible_agents:
+    shape = (env2.size, env2.size, n_health, 2, 2, MAX_ENC+1, MAX_NONENG+1, env2.action_space(a).n)
     q_tables_advice_OFF[a] = np.zeros(shape)
 
 # ── hiperparàmetres ──────────────────────────────────────────
 
-episode_returns = []
-episode_returns_by_group = {
+episode_returns_OFF = []
+episode_returns_by_group_OFF = {
     "NONREG_LOW": [],
     "NONREG_MOD": [],
     "REG_LOW": [],
     "REG_MOD": [],
 }
-
+epsilon = 0.1
 # ── entrenament ──────────────────────────────────────────────
 for ep in range(episodes):
-    env.reset(options={"peh_profiles": profiles})# train always with the same profiles
-    obs = {a: env.observe(a) for a in env.agents}
-    state = {a: get_state(obs[a], env.peh_agents[env.agent_name_mapping[a]]) for a in env.agents}
-    ep_ret = {a: 0.0 for a in env.agents}
+    env2.reset(options={"peh_profiles": profiles})# train always with the same profiles
+    obs = {a: env2.observe(a) for a in env2.agents}
+    state = {a: get_state(obs[a], env2.peh_agents[env2.agent_name_mapping[a]]) for a in env2.agents}
+    ep_ret = {a: 0.0 for a in env2.agents}
     # snapshot del grup inicial (per episodi)
     init_group = {}
-    for a in env.agents:
-        peh = env.peh_agents[env.agent_name_mapping[a]]
+    for a in env2.agents:
+        peh = env2.peh_agents[env2.agent_name_mapping[a]]
         init_group[a] = group_key(peh)
 
     for _ in range(max_steps):
-        agent = env.agent_selection
-        if env.dones[agent]:
-            env.step(None)
-            if len(env.agents) == 0:
+        agent = env2.agent_selection
+        if env2.dones[agent]:
+            env2.step(None)
+            if len(env2.agents) == 0:
                 break
             continue
 
-        mask = action_mask_from_classify(env, agent)
+        mask = action_mask_from_classify(env2, agent)
         feasible = np.flatnonzero(mask)
 
         # ε-greedy però només entre possibles
@@ -742,23 +766,23 @@ for ep in range(episodes):
             if len(feasible) > 0:
                 action = int(np.random.choice(feasible))
             else:
-                action = env.action_space(agent).sample()  # fallback (no hauria de passar)
+                action = env2.action_space(agent).sample()  # fallback (no hauria de passar)
         else:
             action = masked_argmax(q_tables_advice_OFF[agent][state[agent]], mask)
 
         # pas
-        env.step(action)
+        env2.step(action)
 
         # nou estat i reward
-        new_obs = env.observe(agent)
-        individualreward = env.rewards[agent]
-        next_state = get_state(new_obs, env.peh_agents[env.agent_name_mapping[agent]])
+        new_obs = env2.observe(agent)
+        individualreward = env2.rewards[agent]
+        next_state = get_state(new_obs, env2.peh_agents[env2.agent_name_mapping[agent]])
 
         # Q-update
         s = state[agent]; a = action
         # best_next = np.max(q_tables_advice[agent][next_state])
         # q_tables_advice[agent][s + (a,)] += alpha * (individualreward + gamma * best_next - q_tables_advice[agent][s + (a,)])
-        next_mask = action_mask_from_classify(env, agent)
+        next_mask = action_mask_from_classify(env2, agent)
 
         best_next = np.max(np.where(next_mask == 1,
                                     q_tables_advice_OFF[agent][next_state],
@@ -769,39 +793,53 @@ for ep in range(episodes):
         state[agent] = next_state
         ep_ret[agent] += individualreward
 
-        if len(env.agents) == 0:
+        if len(env2.agents) == 0:
             break
 
     # bookkeeping
-    episode_returns.append(sum(ep_ret.values()))
+    episode_returns_OFF.append(sum(ep_ret.values()))
     epsilon = max(eps_min, epsilon * eps_decay)
 
     # rewards per grup (admin x trust) segons estat inicial de l'episodi
     # rewards per grup (admin x trust) segons estat inicial de l'episodi
-    group_totals = {k: 0.0 for k in episode_returns_by_group.keys()}
-    group_counts = {k: 0   for k in episode_returns_by_group.keys()}
+    group_totals = {k: 0.0 for k in episode_returns_by_group_OFF.keys()}
+    group_counts = {k: 0   for k in episode_returns_by_group_OFF.keys()}
 
     for agent, ret in ep_ret.items():
         g = init_group[agent]
         group_totals[g] += ret
         group_counts[g] += 1
 
-    for k in episode_returns_by_group.keys():
+    for k in episode_returns_by_group_OFF.keys():
         if group_counts[k] > 0:
-            episode_returns_by_group[k].append(group_totals[k] / group_counts[k])  # MEAN
+            episode_returns_by_group_OFF[k].append(group_totals[k] / group_counts[k])  # MEAN
         else:
-            episode_returns_by_group[k].append(0.0)
-
-plot_rewards_by_group(episode_returns_by_group)
+            episode_returns_by_group_OFF[k].append(0.0)
+    
+    train_episodes_rows_OFF.append({
+        "run_id": RUN_ID,
+        "scenario": "OFF",
+        "episode": ep,
+        "epsilon": float(epsilon),
+        "total_reward": float(sum(ep_ret.values())),
+        "mean_reward_nonreg_low": float(episode_returns_by_group_OFF["NONREG_LOW"][-1]),
+        "mean_reward_nonreg_mod": float(episode_returns_by_group_OFF["NONREG_MOD"][-1]),
+        "mean_reward_reg_low": float(episode_returns_by_group_OFF["REG_LOW"][-1]),
+        "mean_reward_reg_mod": float(episode_returns_by_group_OFF["REG_MOD"][-1]),
+    })
+plot_rewards_by_group(episode_returns_by_group_OFF)
 
 # ─────────────────────────────────────────────────────────────
 #  GREEDY EVALUATION — CAPABILITIES & POLICY
 # ────────────────────────────────────────────────────────────
 
 ctx2 = Context(grid_size=size)
-ctx2.set_scenario(policy_inclusive_healthcare=policy_inclusive_healthcare)  # universal health = policy OFF
+ctx2.set_scenario(policy_inclusive_healthcare=False)  # universal health = policy OFF
 eval_env2 = GridMAInequityEnv(context=ctx2, render_mode=None, size=size, num_peh=len(profiles),num_social_agents= num_sw, peh_profiles=profiles)
 eval_env2.reset(options={"peh_profiles": profiles})
+ctx2.set_scenario(policy_inclusive_healthcare=False)
+
+print(f"DEBUG [EVAL OFF]: policy = {eval_env2.context.policy_inclusive_healthcare}")
 from collections import Counter
 
 print("\n=== INIT CHECK (EVAL2) ===")
@@ -997,7 +1035,7 @@ final_state_summary_figure(eval_env2, health_state_trace2, admin_state_trace2, i
 
 # IMPORTANT: crea un env nou per log (no reutilitzis eval_env ja consumit)
 ctx_log = Context(grid_size=size)
-ctx_log.set_scenario(policy_inclusive_healthcare=True)
+ctx_log.set_scenario(policy_inclusive_healthcare=False)
 eval_env_log = GridMAInequityEnv(
     context=ctx_log, render_mode=None, size=size,
     num_peh=len(profiles), num_social_agents=num_sw, peh_profiles=profiles
@@ -1058,7 +1096,8 @@ plot_policy_summary_comparison(
 #final_state_comparison_figure(eval_env, health_state_trace, admin_state_trace, initial_admin_state,
                              # eval_env2, health_state_trace2, admin_state_trace2, initial_admin_state2)
 
-pd.DataFrame(train_episode_rows).to_csv(os.path.join(DATADIR, "training_episodes.csv"), index=False)
+pd.DataFrame(train_episode_rows_ON).to_csv(os.path.join(DATADIR, "training_episodes_ON.csv"), index=False)
+pd.DataFrame(train_episodes_rows_OFF).to_csv(os.path.join(DATADIR, "training_episodes_OFF.csv"), index=False)
 pd.DataFrame(eval_step_rows).to_csv(os.path.join(DATADIR, "eval_steps.csv"), index=False)
 pd.DataFrame(eval_policyON_rows).to_csv(os.path.join(DATADIR, "eval_policyON_agents.csv"), index=False)
 pd.DataFrame(eval_policyOFF_rows).to_csv(os.path.join(DATADIR, "eval_policyOFF_agents.csv"), index=False)
@@ -1081,7 +1120,7 @@ run_id = "run_001"   # o timestamp
 # EVAL POLICY ON (ex: legal norm ON)
 # -------------------------
 ctx_on = Context(grid_size=size)
-ctx_on.set_scenario(policy_inclusive_healthcare=False)   # <-- segons el teu criteri "ON"
+ctx_on.set_scenario(policy_inclusive_healthcare=True)   # <-- segons el teu criteri "ON"
 
 eval_env_on = GridMAInequityEnv(
     context=ctx_on, render_mode=None, size=size,
@@ -1115,7 +1154,7 @@ save_eval_artifacts(df_steps_on, df_agents_on, meta_on, outdir=OUTDIR, prefix=f"
 # EVAL POLICY OFF 
 # -------------------------
 ctx_off = Context(grid_size=size)
-ctx_off.set_scenario(policy_inclusive_healthcare=True)   # <-- "OFF" 
+ctx_off.set_scenario(policy_inclusive_healthcare=False)   # <-- "OFF" 
 
 eval_env_off = GridMAInequityEnv(
     context=ctx_off, render_mode=None, size=size,

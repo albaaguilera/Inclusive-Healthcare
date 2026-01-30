@@ -132,6 +132,7 @@ class Context:
         Return a dict  health_P[(h, admin, action)] = [(p, next_h, r), …]
         The logic can branch on self.policy_inclusive_healthcare, budgets, etc.
         """
+        #print(f"[DEBUG build_transition_table] policy_inclusive_healthcare = {self.policy_inclusive_healthcare}")
         health_P = {}
         actions = [a.value for a in Actions]
         admin_states = ["registered", "non-registered"]
@@ -152,12 +153,15 @@ class Context:
                         if a == Actions.RECEIVE_MEDICAL_ATTENTION.value:
                             # ----- legal norm demo --------------------
                             p_treat = 1.0 if (admin == "registered"
-                                            or getattr(self, "policy_inclusive_healthcare", False)) else 0.0
+                                or getattr(self, "policy_inclusive_healthcare", True)) else 0.0  # if agent is registered or policy is ON, he gets medical attention
                             nh_good = min(h + peh_agent.health_update, peh_agent.max_health)
                             nh_bad  = max(h - peh_agent.health_step, peh_agent.min_health)
                             r_fail = -1.0 if nh_bad == peh_agent.min_health else -0.05
                             trans = [(p_treat, nh_good, +0.10),
                                     (1.0 - p_treat, nh_bad, r_fail)]
+                            # Debug a sample case
+                            # if h == 3.0 and admin == "non-registered":
+                            #     print(f"  [TRANSITION] h=3.0, admin=non-registered → p_treat={p_treat} (policy={self.policy_inclusive_healthcare})")
 
                         else:
                             nh = max(h - peh_agent.health_step, peh_agent.min_health)
@@ -261,8 +265,3 @@ def update_all_capability_scores(env):
             "Affiliation": env.capabilities[ag]["Affiliation"] 
         }
 
-
-
-## Agent Population 
-
-num_peh_agents = 10  

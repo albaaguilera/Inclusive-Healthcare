@@ -48,8 +48,6 @@ feature_cols = [
 
 
 # extra things
-
-
 GROUP_COLORS = {
     "NONREG_MOD": "tab:orange",
     "NONREG_LOW": "tab:red",
@@ -557,6 +555,9 @@ def plot_rewards_by_group(episode_returns_by_group, w=10):
     plt.ylim(-1.5, 1.5)
     plt.legend(fontsize=12)
     plt.tight_layout()
+    os.makedirs("output/figures", exist_ok=True)
+    plt.savefig("output/figures/rewards_by_group.png", dpi=300, bbox_inches="tight")
+    #plt.savefig("output/figures/policy_summary_comparison.pdf", bbox_inches="tight")
     plt.show()
 
 # utils.py
@@ -636,7 +637,161 @@ def plot_mean_optimal_strategy(
     plt.grid(True, axis="y", alpha=0.3)
     plt.legend(fontsize=14)
     plt.tight_layout()
+    os.makedirs("output/figures", exist_ok=True)
+    plt.savefig("output/figures/strategy.png", dpi=300, bbox_inches="tight")
+    #plt.savefig("output/figures/policy_summary_comparison.pdf", bbox_inches="tight")
     plt.show()
+# utils.py
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+# assumes you already have in utils.py:
+# - GROUP_COLORS, GROUP_LABELS
+# - a_label(...)
+# - group_of_agent(ag, initial_admin_state, initial_trust_type)
+
+def plot_optimal_strategy(
+    exec_hist: dict,
+    *,
+    agent_id: str,
+    initial_admin_state: dict,
+    initial_trust_type: dict,
+    num_actions: int,
+    exclude_action_idxs: list[int] | None = None,
+    title: str | None = None,
+    figsize=(10, 3.6),
+    savepath: str | None = None,
+    show: bool = True,
+    ax=None,
+):
+    """
+    Plot greedy strategy for ONE agent (sequence of actions over local steps).
+
+    exec_hist[agent_id] must be a list of tuples:
+        (t_local, action_idx, admin_status_at_that_step)
+    where admin_status_at_that_step can be 'registered'/'non-registered' or None.
+    """
+    if exclude_action_idxs is None:
+        exclude_action_idxs = []
+
+    if agent_id not in exec_hist:
+        raise KeyError(f"agent_id={agent_id} not in exec_hist (keys={list(exec_hist.keys())[:10]}...)")
+
+    seq = exec_hist[agent_id]
+
+    # filter
+    xs, ys, status = [], [], []
+    for (t_local, a_idx, admin_status) in seq:
+        a_idx = int(a_idx)
+        if a_idx in exclude_action_idxs:
+            continue
+        xs.append(int(t_local))
+        ys.append(a_idx)
+        status.append(admin_status)
+
+    if len(xs) == 0:
+        raise ValueError(f"After excluding actions, agent {agent_id} has no steps to plot.")
+
+    # group + color
+    g = group_of_agent(agent_id, initial_admin_state, initial_trust_type)
+    col = GROUP_COLORS.get(g, "tab:blue")
+    g_label = GROUP_LABELS.get(g, g)
+
+    # prepare figure/ax
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+    else:
+        fig = ax.figure
+
+    # base line (light)
+    ax.plot(xs, ys, color=col, alpha=0.30, linewidth=1.6)
+
+    # markers step by step (marker depends on admin status at that step if available)
+    admin0 = initial_admin_state.get(agent_id, None)
+
+    def _marker_for(st):
+        st = st if st is not None and st == st else admin0  # handle None/nan
+        if st == "registered":
+            return "o"
+        if st == "non-registered":
+            return "x"
+        return "o"  # fallback
+
+    for x, y, st in zip(xs, ys, status):
+        mk = _marker_for(st)
+        if mk == "o":
+            ax.scatter(x, y, color=col, marker=mk, s=90, edgecolors="k", zorder=5)
+        else:
+            ax.scatter(x, y, color=col, marker=mk, s=90, zorder=5)
+
+    ax.set_yticks(range(num_actions))
+    ax.set_yticklabels([a_label(i) for i in range(num_actions)], fontsize=13)
+    ax.set_xlabel("Simulation step (local)", fontsize=13)
+    ax.set_ylabel("Action", fontsize=13)
+    ax.grid(True, axis="y", alpha=0.30)
+
+    if title is None:
+        title = f"{agent_id} — {g_label}"
+    ax.set_title(title, fontsize=13)
+
+    fig.tight_layout()
+
+    if savepath is not None:
+        os.makedirs(os.path.dirname(savepath), exist_ok=True)
+        fig.savefig(savepath, dpi=300, bbox_inches="tight")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return fig, ax
+
+
+def plot_all_agents_optimal_strategies(
+    exec_hist: dict,
+    *,
+    initial_admin_state: dict,
+    initial_trust_type: dict,
+    num_actions: int,
+    exclude_action_idxs: list[int] | None = None,
+    outdir: str = "output/figures/strategies_by_agent",
+    prefix: str = "",
+    show: bool = False,
+    max_agents: int | None = None,
+):
+    """
+    Save ONE plot per agent with its greedy strategy.
+
+    Returns: list of saved filepaths
+    """
+    if exclude_action_idxs is None:
+        exclude_action_idxs = []
+
+    os.makedirs(outdir, exist_ok=True)
+
+    agent_ids = sorted(exec_hist.keys())
+    if max_agents is not None:
+        agent_ids = agent_ids[:max_agents]
+
+    saved = []
+    for ag in agent_ids:
+        fname = f"{prefix}{ag}.png" if prefix else f"{ag}.png"
+        savepath = os.path.join(outdir, fname)
+        plot_optimal_strategy(
+            exec_hist,
+            agent_id=ag,
+            initial_admin_state=initial_admin_state,
+            initial_trust_type=initial_trust_type,
+            num_actions=num_actions,
+            exclude_action_idxs=exclude_action_idxs,
+            savepath=savepath,
+            show=show,
+        )
+        saved.append(savepath)
+
+    return saved
 
 
 def final_state_comparison_figure(eval_env, health_state_trace, admin_state_trace, initial_admin_state,
@@ -1013,12 +1168,6 @@ def action_mask_from_classify(env, agent):
     for act in poss:
         mask[act.value] = 1
     return mask
-
-def masked_argmax(q_values, mask):
-    """Argmax només entre accions possibles."""
-    q = np.array(q_values, dtype=float).copy()
-    q[mask == 0] = -1e9
-    return int(np.argmax(q))
 
 # Softer / pastel colors for health 1..4 (bad→good)
 PASTEL_HEALTH = {
@@ -1743,10 +1892,14 @@ def run_eval_and_log_rich(
                 impos_names = [getattr(a, "name", str(a)) for a in impos]
             except Exception:
                 pass
+        pre_actor = _peh_snapshot(env, agent, initial_admin, initial_trust)
+        b_pre = _budgets_snapshot(env)
 
         # step
         env.step(action)
 
+        post_actor = _peh_snapshot(env, agent, initial_admin, initial_trust)
+        b_post = _budgets_snapshot(env)
 
         # reward & flags
         r = float(env.rewards.get(agent, 0.0))
@@ -1760,10 +1913,9 @@ def run_eval_and_log_rich(
         # action name (si tens Actions enum al teu context, guarda també el nom)
         action_name = None
         try:
-            # si és enum Actions, sovint tens env.context.Actions; aquí ho fem robust
-            action_name = str(action)
+            action_name = Actions(int(action)).name
         except Exception:
-            action_name = None
+            action_name = str(action)
 
         # df_steps row (1 per acció executada)
         row = {
@@ -1781,6 +1933,9 @@ def run_eval_and_log_rich(
             "trunc": trunc,
             **b,
         }
+        row.update({f"pre_actor_{k}": v for k, v in pre_actor.items()})
+        row.update({f"post_actor_{k}": v for k, v in post_actor.items()})
+
         # caps_actor = {}
         # if hasattr(env, "capabilities") and isinstance(env.capabilities, dict):
         #     caps_actor = env.capabilities.get(agent, {}) or {}
@@ -1866,21 +2021,6 @@ def run_eval_and_log_rich(
     meta["_df_sw"] = df_sw  # <- només per conveniència; save_eval_artifacts el separarà
 
     return df_steps, df_agents, meta
-
-def _budget_costs_from_env(eval_env, init_health_budget, init_social_budget):
-    """
-    Compute realised costs from budget deltas (robust; avoids '0 healthcare' due to bad inference).
-    """
-    ctx = getattr(eval_env, "context", None)
-    if ctx is None:
-        return 0.0, 0.0
-
-    fin_health_budget = float(getattr(ctx, "healthcare_budget", init_health_budget))
-    fin_social_budget = float(getattr(ctx, "social_service_budget", init_social_budget))
-
-    health_cost = max(0.0, float(init_health_budget) - fin_health_budget)
-    social_cost = max(0.0, float(init_social_budget) - fin_social_budget)
-    return social_cost, health_cost
 
 
 def _draw_grid_panel(ax_grid, eval_env, initial_admin_state, initial_trust_type, title):
@@ -2000,55 +2140,6 @@ def _draw_functionings_panel(ax_fun, health_state_trace, admin_state_trace, heal
     ax_fun.legend(fontsize=9, loc="lower right")
 GROUP_ORDER = ["NONREG_LOW", "NONREG_MOD", "REG_LOW", "REG_MOD"]
 
-def _aggregate_capabilities_by_group(bh_trace, af_trace, initial_admin_state, initial_trust_type):
-    """
-    Returns dict: group -> (mean_bh, mean_af) aggregated over all agents & all timesteps.
-    """
-    buckets_bh = {g: [] for g in GROUP_ORDER}
-    buckets_af = {g: [] for g in GROUP_ORDER}
-
-    for ag in bh_trace.keys():
-        g = group_key_from_initial(initial_admin_state, initial_trust_type, ag)
-        if g not in buckets_bh:
-            continue
-        buckets_bh[g].extend([float(x) for x in bh_trace.get(ag, []) if x is not None])
-        buckets_af[g].extend([float(x) for x in af_trace.get(ag, []) if x is not None])
-
-    out = {}
-    for g in GROUP_ORDER:
-        mbh = float(np.mean(buckets_bh[g])) if len(buckets_bh[g]) else np.nan
-        maf = float(np.mean(buckets_af[g])) if len(buckets_af[g]) else np.nan
-        out[g] = (mbh, maf)
-    return out
-
-
-def _shares_initial_final(health_state_trace, admin_state_trace, healthy_threshold=3.0):
-    """
-    Uses your traces dicts: health_state_trace[ag] list, admin_state_trace[ag] list (0/1).
-    Computes shares at t=0 and t=T (last).
-    """
-    agents = list(health_state_trace.keys())
-    if not agents:
-        return (0.0, 0.0, 0.0, 0.0)
-
-    h0, hT, a0, aT = [], [], [], []
-    for ag in agents:
-        hs = health_state_trace.get(ag, [])
-        ad = admin_state_trace.get(ag, [])
-        if not hs or not ad:
-            continue
-        h0.append(float(hs[0]) >= healthy_threshold)
-        hT.append(float(hs[-1]) >= healthy_threshold)
-        a0.append(int(ad[0]) == 1)
-        aT.append(int(ad[-1]) == 1)
-
-    init_healthy = float(np.mean(h0)) if len(h0) else 0.0
-    fin_healthy  = float(np.mean(hT)) if len(hT) else 0.0
-    init_reg     = float(np.mean(a0)) if len(a0) else 0.0
-    fin_reg      = float(np.mean(aT)) if len(aT) else 0.0
-
-    return init_healthy, fin_healthy, init_reg, fin_reg
-
 def _cap_agg_by_group(bh_trace, af_trace, init_admin, init_trust):
     groups = ["NONREG_LOW", "NONREG_MOD", "REG_LOW", "REG_MOD"]
     bh_init = {g: [] for g in groups}
@@ -2100,8 +2191,8 @@ def plot_policy_summary_comparison(
     grid_width_ratio=1.35,
     right_width_ratio=1.0,
     show_social_workers=True,
-    title_on="Policy OFF",
-    title_off="Policy ON",
+    title_on="Policy ON",
+    title_off="Policy OFF",
     font_big=16,
     font_med=14,
     font_small=12,
@@ -2580,6 +2671,9 @@ def plot_policy_summary_comparison(
                 init_admin_off, init_trust_off,
                 init_health_budget_off, init_social_budget_off)
 
+    os.makedirs("output/figures", exist_ok=True)
+    plt.savefig("output/figures/policy_summary_comparison.png", dpi=300, bbox_inches="tight")
+    #plt.savefig("output/figures/policy_summary_comparison.pdf", bbox_inches="tight")
     plt.show()
 
 # ------------------------------------------------------------
@@ -2655,3 +2749,106 @@ def load_eval_artifacts(outdir: str, prefix: str) -> Dict[str, Any]:
         with open(meta_path, "r", encoding="utf-8") as f:
             out["meta"] = json.load(f)
     return out
+
+
+# DATA ANALYSIS HELPERS
+import pandas as pd
+import numpy as np
+
+def _step_col(df):
+    for c in ["t_global", "step", "global_step"]:
+        if c in df.columns: 
+            return c
+    raise ValueError("No trobo columna de temps global (t_global/step/global_step)")
+
+def _to_action_idx(series, utils=None):
+    """
+    Retorna una sèrie d'int (action_idx).
+    Accepta:
+      - int ja (OK)
+      - string tipus 'ENGAGE_SOCIAL_SERVICES' (Enum name)
+      - string numèric '2'
+    """
+    if pd.api.types.is_integer_dtype(series) or pd.api.types.is_numeric_dtype(series):
+        return series.astype(int)
+
+    s = series.astype(str)
+
+    # prova: string numèric
+    num = pd.to_numeric(s, errors="coerce")
+    if num.notna().mean() > 0.8:
+        return num.fillna(-1).astype(int)
+
+    # prova: Enum name (utils.Actions)
+    if utils is not None and hasattr(utils, "Actions"):
+        members = getattr(utils.Actions, "__members__", {})
+        if len(members) > 0:
+            def map_name(x):
+                x = str(x)
+                return members[x].value if x in members else -1
+            return s.map(map_name).astype(int)
+
+    # fallback
+    return pd.Series([-1]*len(series), index=series.index, dtype=int)
+
+def action_label(i, utils=None):
+    if utils is not None and hasattr(utils, "Actions"):
+        try:
+            return utils.Actions(int(i)).name
+        except Exception:
+            pass
+    return str(i)
+
+def extract_agent_strategies(df_steps, df_agents, utils=None, scenario="ON"):
+    tcol = _step_col(df_steps)
+    df = df_steps.copy().sort_values(tcol).reset_index(drop=True)
+
+    # t_local per agent
+    df["t_local"] = df.groupby("agent").cumcount()
+
+    # action_idx i action_name
+    df["action_idx"] = _to_action_idx(df["action"], utils=utils)
+    df["action_name"] = df["action_idx"].map(lambda i: action_label(i, utils=utils))
+
+    # inicials (t=0)
+    t0 = df_agents[df_agents[tcol] == df_agents[tcol].min()].copy()
+    init = t0.set_index("agent")
+
+    # finals (últim t)
+    tf = df_agents[df_agents[tcol] == df_agents[tcol].max()].copy()
+    fin = tf.set_index("agent")
+
+    # seqüència d'accions
+    seq = df.groupby("agent")["action_name"].apply(list)
+    seq_idx = df.groupby("agent")["action_idx"].apply(list)
+    nsteps = df.groupby("agent")["t_local"].max().add(1)
+
+    # resum per agent (afegint el que existeixi a df_agents)
+    out = pd.DataFrame({
+        "scenario": scenario,
+        "n_steps": nsteps,
+        "strategy": seq.map(lambda xs: " → ".join(xs)),
+    })
+
+    # si hi ha admin/trust/health a init
+    for col in ["admin", "trust", "health", "health_state"]:
+        if col in init.columns:
+            out[f"init_{col}"] = init[col]
+
+    # i finals
+    for col in ["admin", "trust", "health", "health_state"]:
+        if col in fin.columns:
+            out[f"final_{col}"] = fin[col]
+
+    # reward acumulat si existeix a df_steps
+    if "reward" in df.columns:
+        out["return"] = df.groupby("agent")["reward"].sum()
+
+    # BH/AF acumulat o últim valor si existeixen (depèn de com ho logs)
+    for cap_col in ["bh", "af", "cap_bh", "cap_af", "Bodily Health", "Affiliation"]:
+        if cap_col in df.columns:
+            out[f"mean_{cap_col}"] = df.groupby("agent")[cap_col].mean()
+            out[f"last_{cap_col}"] = df.groupby("agent")[cap_col].last()
+
+    # també deixa el df per inspecció fina
+    return out.sort_values(["n_steps"], ascending=False), df

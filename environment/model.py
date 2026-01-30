@@ -68,8 +68,8 @@ class GridMAInequityEnv(AECEnv):
         }
 
         # TRANSITION PROBABILITIES
-        self.health_P = [self.context.build_transition_table(agent)
-                 for agent in self.peh_agents]
+        # self.health_P = [self.context.build_transition_table(agent)
+        #          for agent in self.peh_agents]
 
     def _is_adjacent_to_social_agent(self, agent):
         ax, ay = agent.location
@@ -319,7 +319,7 @@ class GridMAInequityEnv(AECEnv):
 
             if act == Actions.RECEIVE_MEDICAL_ATTENTION:
                 feasible = (peh.administrative_state == "registered"
-                or getattr(self.context, "universal_health", False))
+                or getattr(self.context, "policy_inclusive_healthcare", True))
 
             elif act == Actions.ENGAGE_SOCIAL_SERVICES:
                 feasible = self._is_adjacent_to_social_agent(peh)

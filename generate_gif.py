@@ -27,13 +27,14 @@ def load_q_tables_and_profiles(run_dir):
         profiles = json.load(f)
     
     return q_tables_on, q_tables_off, profiles
-
-def run_simulation_and_track(env, q_tables, max_steps=100):
+def run_simulation_and_track(env, q_tables, max_steps=100, snapshot_interval=5):
     """
-    Run simulation and track all histories needed for plot_policy_summary_comparison.
+    Run simulation and track histories.
+    
+    Args:
+        snapshot_interval: Take a snapshot every N steps
     """
     
-    # Initialize tracking dictionaries
     bh_trace = {ag: [] for ag in env.possible_agents}
     af_trace = {ag: [] for ag in env.possible_agents}
     health_trace = {ag: [] for ag in env.possible_agents}
@@ -42,27 +43,24 @@ def run_simulation_and_track(env, q_tables, max_steps=100):
     init_admin = {}
     init_trust = {}
     
-    # Store initial state
     for ag in env.possible_agents:
         idx = env.agent_name_mapping[ag]
         peh = env.peh_agents[idx]
         init_admin[ag] = peh.administrative_state
         init_trust[ag] = peh.trust_type
         
-        # Initial values
         health_trace[ag].append(peh.health_state)
         admin_trace[ag].append(1 if peh.administrative_state == "registered" else 0)
         bh_trace[ag].append(0.0)
         af_trace[ag].append(0.0)
     
-    # Get initial budgets
     ctx = env.context
     init_health_budget = getattr(ctx, "healthcare_budget", 10000.0)
     init_social_budget = getattr(ctx, "social_service_budget", 5000.0)
     
     snapshots = []
     step_count = 0
-    snapshot_interval = 2
+    # ← snapshot_interval ara és un paràmetre, no fix
     
     # Initial snapshot
     snapshots.append({
@@ -73,7 +71,6 @@ def run_simulation_and_track(env, q_tables, max_steps=100):
         'admin_trace': {k: list(v) for k, v in admin_trace.items()},
     })
     
-    # Run simulation
     while env.agents and step_count < max_steps:
         agent = env.agent_selection
         
@@ -90,7 +87,6 @@ def run_simulation_and_track(env, q_tables, max_steps=100):
         env.step(action)
         step_count += 1
         
-        # Update all traces
         for ag in env.possible_agents:
             idx = env.agent_name_mapping[ag]
             peh = env.peh_agents[idx]
@@ -106,7 +102,7 @@ def run_simulation_and_track(env, q_tables, max_steps=100):
                 bh_trace[ag].append(1.0 if peh.health_state >= 3.0 else 0.0)
                 af_trace[ag].append(1.0 if peh.administrative_state == "registered" else 0.5)
         
-        # Take snapshot at intervals
+        # ✅ Usa el paràmetre snapshot_interval
         if step_count % snapshot_interval == 0 or not env.agents:
             snapshots.append({
                 'step': step_count,
@@ -138,15 +134,14 @@ def fig_to_array(fig):
     
     return img_array
 
-
 def create_comparison_evolution_gif(run_dir, output_name="policy_evolution_comparison.gif", 
-                                   output_format="mp4", max_steps=100, debug_frames=False):
+                                   output_format="gif", max_steps=100, 
+                                   snapshot_interval=2, debug_frames=False):
     """
-    Generate evolution video/GIF using your existing plot_policy_summary_comparison.
+    Generate evolution video/GIF.
     
     Args:
         output_format: 'gif' or 'mp4'
-        debug_frames: If True, save individual frames as PNG for debugging
     """
     
     q_tables_on, q_tables_off, profiles = load_q_tables_and_profiles(run_dir)
@@ -155,7 +150,6 @@ def create_comparison_evolution_gif(run_dir, output_name="policy_evolution_compa
     num_peh = len(profiles)
     num_sw = 15
     
-    # Create environments
     print("Setting up environments...")
     ctx_on = Context(grid_size=size)
     ctx_on.set_scenario(policy_inclusive_healthcare=True)
@@ -175,16 +169,16 @@ def create_comparison_evolution_gif(run_dir, output_name="policy_evolution_compa
     )
     env_off.reset(options={"peh_profiles": profiles})
     
-    # Run both simulations
     print("Running POLICY ON simulation...")
     snapshots_on, init_admin_on, init_trust_on, init_hb_on, init_sb_on = \
-        run_simulation_and_track(env_on, q_tables_on, max_steps=max_steps)
+        run_simulation_and_track(env_on, q_tables_on, max_steps=max_steps, 
+                                snapshot_interval=snapshot_interval)
     
     print("Running POLICY OFF simulation...")
     snapshots_off, init_admin_off, init_trust_off, init_hb_off, init_sb_off = \
-        run_simulation_and_track(env_off, q_tables_off, max_steps=max_steps)
+        run_simulation_and_track(env_off, q_tables_off, max_steps=max_steps,
+                                snapshot_interval=snapshot_interval)
     
-    # Generate frames
     print(f"Generating {len(snapshots_on)} frames...")
     frames = []
     
@@ -193,9 +187,8 @@ def create_comparison_evolution_gif(run_dir, output_name="policy_evolution_compa
         os.makedirs(debug_dir, exist_ok=True)
     
     for i, (snap_on, snap_off) in enumerate(zip(snapshots_on, snapshots_off)):
-        print(f"  Frame {i+1}/{len(snapshots_on)} (step {snap_on['step']})", end='\r')
+        print(f"  Frame {i+1}/{len(snapshots_on)} (step {snap_on['step']})")
         
-        # Create figure with your existing function
         plot_policy_summary_comparison(
             env_on=env_on,
             bh_on=snap_on['bh_trace'],
@@ -224,39 +217,40 @@ def create_comparison_evolution_gif(run_dir, output_name="policy_evolution_compa
         
         # Get current figure and convert to array
         fig = plt.gcf()
-        img_array = fig_to_array(fig)
+        fig.canvas.draw()
+        
+        # Convert to RGB array
+        buf = fig.canvas.buffer_rgba()
+        img_array = np.asarray(buf)[:, :, :3].astype(np.uint8)
         
         # Debug: save individual frame
         if debug_frames:
             frame_path = os.path.join(debug_dir, f"frame_{i:03d}.png")
             Image.fromarray(img_array).save(frame_path)
-            print(f"  Saved debug frame: {frame_path}")
         
         frames.append(img_array)
-        plt.close('all')
+        plt.close(fig)
     
     print(f"\nSaving as {output_format.upper()}...")
     
-    # Save based on format
+    # ✅ NOMÉS UNA VEGADA - Save based on format
     if output_format.lower() == 'mp4':
         output_path = os.path.join(run_dir, output_name.replace('.gif', '.mp4'))
-        # Use imageio with ffmpeg
         imageio.mimsave(output_path, frames, fps=2, codec='libx264', 
                        quality=8, pixelformat='yuv420p')
     else:  # gif
         output_path = os.path.join(run_dir, output_name)
-        # Convert to PIL Images for better GIF handling
         pil_frames = [Image.fromarray(f) for f in frames]
         pil_frames[0].save(
             output_path,
             save_all=True,
             append_images=pil_frames[1:],
-            duration=800,  # ms per frame
+            duration=500,  # ms per frame
             loop=0,
-            optimize=False  # Important: don't optimize, it can cause blank frames
+            optimize=False
         )
     
-    print(f"✓ Video saved: {output_path}")
+    print(f"✓ {'Video' if output_format == 'mp4' else 'GIF'} saved: {output_path}")
     
     if debug_frames:
         print(f"✓ Debug frames saved in: {debug_dir}")
@@ -277,24 +271,14 @@ if __name__ == "__main__":
     
     print(f"Using run directory: {run_dir}")
     
-    # Try MP4 first (usually works better)
-    try:
-        create_comparison_evolution_gif(
-            run_dir, 
-            output_name="policy_evolution_comparison.mp4",
-            output_format="mp4",
-            max_steps=100,
-            debug_frames=False  # Set to True to debug
-        )
-    except Exception as e:
-        print(f"⚠️  MP4 failed: {e}")
-        print("Trying GIF instead...")
-        create_comparison_evolution_gif(
-            run_dir,
-            output_name="policy_evolution_comparison.gif",
-            output_format="gif",
-            max_steps=100,
-            debug_frames=True  # Save debug frames
-        )
+    # ✅ GENERA GIF (no MP4)
+    create_comparison_evolution_gif(
+        run_dir,
+        output_name="policy_evolution_comparison.gif",
+        output_format="gif",  # ← IMPORTANT: especifica "gif"
+        max_steps=100,
+        snapshot_interval=2,  # 1 frame cada 2 steps
+        debug_frames=False
+    )
     
-    print("\n✓ Evolution video generated successfully!")
+    print("\n✓ Evolution GIF generated successfully!")

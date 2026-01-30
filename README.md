@@ -7,10 +7,10 @@ This repository contains the first step towards this goal: an agent-based simula
 
 These are the learnt strategies and outcomes with POLICY ON and POLICY OFF for N = 4 PEH agents, M= 8 social worker agents and S = 7x7 environment size: 
 
-### Side-by-Side Comparison
-![Comparison](output/run_20260130-122516/policy_evolution_comparison.gif)
+## Effect of Inclusive Healthcare ON vs OFF
+![Comparison](output/run_20260130-125815/policy_evolution_comparison.gif)
 
-Building upon [Aguilera et al. (2024)](https://arxiv.org/abs/2503.18389) — *Agent-based Modeling meets the Capability Approach for Human Development: Simulating Homelessness Policy-making*. arXiv:2503.18389 [cs.AI] and [Aguilera et al. (2025)](https://arxiv.org/abs/2503.18389) — *Barriers to Healthcare: Agent-Based Modeling to Mitigate Inequity*. arXiv:2507.23644 [cs.AI] 
+Building upon [Aguilera et al. (2024)](https://arxiv.org/abs/2503.18389) — *Agent-based Modeling meets the Capability Approach for Human Development: Simulating Homelessness Policy-making*. arXiv:2503.18389 [cs.AI] and [Aguilera et al. (2025)](https://arxiv.org/abs/2507.23644) — *Agents Trusting Agents? Restoring Lost Capabilities with Inclusive Healthcare*. arXiv:2507.23644 [cs.AI] 
 
 # Optimal Results 
 Using Q-learning and PBRS, this is the optimal strategy of the environment:

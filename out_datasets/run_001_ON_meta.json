@@ -2,7 +2,7 @@
   "run_id": "run_001",
   "scenario": "legal_norm_ON",
   "policy_tag": "eval_policyON",
-  "total_steps": 28,
+  "total_steps": 20,
   "initial_admin": {
     "peh_0": "non-registered",
     "peh_1": "non-registered",
@@ -25,43 +25,43 @@
   },
   "final_states": {
     "peh_0": {
-      "final_health": 1.0,
-      "final_admin": "non-registered",
-      "final_engagement_counter": 1,
-      "final_non_engagement_counter": 0,
-      "final_location": [
-        6,
-        6
-      ]
-    },
-    "peh_1": {
-      "final_health": 1.0,
+      "final_health": 4.0,
       "final_admin": "non-registered",
       "final_engagement_counter": 0,
       "final_non_engagement_counter": 0,
       "final_location": [
-        6,
+        3,
         2
       ]
     },
+    "peh_1": {
+      "final_health": 4.0,
+      "final_admin": "non-registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 0,
+      "final_location": [
+        1,
+        4
+      ]
+    },
     "peh_2": {
-      "final_health": 1.0,
+      "final_health": 4.0,
       "final_admin": "non-registered",
       "final_engagement_counter": 0,
       "final_non_engagement_counter": 0,
       "final_location": [
         2,
-        6
+        4
       ]
     },
     "peh_3": {
-      "final_health": 1.0,
+      "final_health": 4.0,
       "final_admin": "non-registered",
       "final_engagement_counter": 0,
       "final_non_engagement_counter": 1,
       "final_location": [
-        4,
-        1
+        3,
+        4
       ]
     },
     "peh_4": {
@@ -71,7 +71,7 @@
       "final_non_engagement_counter": 0,
       "final_location": [
         3,
-        6
+        0
       ]
     },
     "peh_5": {
@@ -80,18 +80,18 @@
       "final_engagement_counter": 0,
       "final_non_engagement_counter": 0,
       "final_location": [
-        2,
-        0
+        5,
+        4
       ]
     },
     "peh_6": {
-      "final_health": 1.0,
-      "final_admin": "non-registered",
-      "final_engagement_counter": 1,
-      "final_non_engagement_counter": 1,
+      "final_health": 4.0,
+      "final_admin": "registered",
+      "final_engagement_counter": 0,
+      "final_non_engagement_counter": 0,
       "final_location": [
-        2,
-        2
+        3,
+        3
       ]
     },
     "peh_7": {
@@ -101,7 +101,7 @@
       "final_non_engagement_counter": 0,
       "final_location": [
         6,
-        5
+        4
       ]
     }
   },
@@ -140,5 +140,5 @@
       }
     }
   },
-  "sw_rows_count": 435
+  "sw_rows_count": 315
 }

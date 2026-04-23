@@ -70,51 +70,37 @@ Figure 3 style policy evolution comparison for `N=16`, `N_sw=20`, `size=7`:
 
 ## Paper Figures
 
-### Figure 3: Final Comparison
-
-**N=16:**
-
-![Figure 3 - N=16](output/paper_selected/n16/figure3_dumbbell.png)
-
-**N=25:**
-
-![Figure 3 - N=25](output/paper_selected/n25/figure3_dumbbell.png)
-
 ### Figure 2: Policy OFF Scenario
 
-**Rewards (N=16):**
+| Rewards (N=16) | Strategies (N=16) |
+|---|---|
+| ![Figure 2 OFF Rewards](output/paper_selected/n16/figure2_policy_off_rewards.png) | ![Figure 2 OFF Strategies](output/paper_selected/n16/figure2_policy_off_strategies.png) |
 
-![Figure 2 OFF Rewards](output/paper_selected/n16/figure2_policy_off_rewards.png)
-
-**Strategies (N=16):**
-
-![Figure 2 OFF Strategies](output/paper_selected/n16/figure2_policy_off_strategies.png)
+| Rewards (N=25) | Strategies (N=25) |
+|---|---|
+| ![Figure 2 OFF Rewards N=25](output/paper_selected/n25/figure2_policy_off_rewards.png) | ![Figure 2 OFF Strategies N=25](output/paper_selected/n25/figure2_policy_off_strategies.png) |
 
 ### Figure 2: Policy ON Scenario
 
-**Rewards (N=16):**
+| Rewards (N=16) | Strategies (N=16) |
+|---|---|
+| ![Figure 2 ON Rewards](output/paper_selected/n16/figure2_policy_on_rewards.png) | ![Figure 2 ON Strategies](output/paper_selected/n16/figure2_policy_on_strategies.png) |
 
-![Figure 2 ON Rewards](output/paper_selected/n16/figure2_policy_on_rewards.png)
+| Rewards (N=25) | Strategies (N=25) |
+|---|---|
+| ![Figure 2 ON Rewards N=25](output/paper_selected/n25/figure2_policy_on_rewards.png) | ![Figure 2 ON Strategies N=25](output/paper_selected/n25/figure2_policy_on_strategies.png) |
 
-**Strategies (N=16):**
+### Figure 3: Final Comparison
 
-![Figure 2 ON Strategies](output/paper_selected/n16/figure2_policy_on_strategies.png)
-
-### Figure 2: Policy ON Scenario (N=25)
-
-**Rewards (N=25):**
-
-![Figure 2 ON Rewards - N=25](output/paper_selected/n25/figure2_policy_on_rewards.png)
-
-**Strategies (N=25):**
-
-![Figure 2 ON Strategies - N=25](output/paper_selected/n25/figure2_policy_on_strategies.png)
+| N=16 | N=25 |
+|---|---|
+| ![Figure 3 N=16](output/paper_selected/n16/figure3_dumbbell.png) | ![Figure 3 N=25](output/paper_selected/n25/figure3_dumbbell.png) |
 
 ## Scalability Analysis
 
-![Scalability score](output/paper_selected/scalability/equilibrium_preservation_score.png)
-
-![Policy gaps by scale](output/paper_selected/scalability/policy_gaps_by_scale.png)
+| Equilibrium Preservation Score | Policy Gaps by Scale |
+|---|---|
+| ![Scalability score](output/paper_selected/scalability/equilibrium_preservation_score.png) | ![Policy gaps by scale](output/paper_selected/scalability/policy_gaps_by_scale.png) |
 
 The latest selected scalability summary is stored in:
 

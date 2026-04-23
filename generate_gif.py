@@ -46,6 +46,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-max-steps", type=int, default=100)
     parser.add_argument("--eval-max-steps", type=int, default=120)
     parser.add_argument("--snapshot-interval", type=int, default=8)
+    parser.add_argument(
+        "--frame-duration-ms",
+        type=int,
+        default=750,
+        help="Milliseconds per frame in the output GIF.",
+    )
     parser.add_argument("--alpha", type=float, default=0.2)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--epsilon", type=float, default=0.1)
@@ -340,7 +346,13 @@ def render_frame(
     return image
 
 
-def create_gif(cfg: ExperimentConfig, output_path: Path, *, snapshot_interval: int) -> Path:
+def create_gif(
+    cfg: ExperimentConfig,
+    output_path: Path,
+    *,
+    snapshot_interval: int,
+    frame_duration_ms: int,
+) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     profiles = load_profiles(cfg.num_peh)
@@ -376,7 +388,7 @@ def create_gif(cfg: ExperimentConfig, output_path: Path, *, snapshot_interval: i
         output_path,
         save_all=True,
         append_images=frames[1:],
-        duration=450,
+        duration=frame_duration_ms,
         loop=0,
         optimize=False,
     )
@@ -385,6 +397,7 @@ def create_gif(cfg: ExperimentConfig, output_path: Path, *, snapshot_interval: i
         "generated_at": datetime.now().isoformat(),
         "config": asdict(cfg),
         "snapshot_interval": snapshot_interval,
+        "frame_duration_ms": frame_duration_ms,
         "frame_count": frame_count,
         "output_gif": str(output_path),
     }
@@ -396,7 +409,12 @@ def main() -> None:
     args = parse_args()
     cfg = build_cfg(args)
     output_path = Path(args.output)
-    result = create_gif(cfg, output_path, snapshot_interval=args.snapshot_interval)
+    result = create_gif(
+        cfg,
+        output_path,
+        snapshot_interval=args.snapshot_interval,
+        frame_duration_ms=args.frame_duration_ms,
+    )
     print(f"Saved Figure 3 style policy evolution GIF to: {result}")
 
 

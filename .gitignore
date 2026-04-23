@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+output/paper_ready/
+output/robustness_seeds/
+output/scalability/

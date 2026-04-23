@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-23T09:06:40.979474",
+  "generated_at": "2026-04-23T09:30:39.074503",
   "config": {
     "size": 7,
     "num_peh": 16,
@@ -21,6 +21,7 @@
     ]
   },
   "snapshot_interval": 8,
+  "frame_duration_ms": 750,
   "frame_count": 6,
   "output_gif": "C:\\Users\\albaa\\Escriptori\\AABM\\Inclusive Healthcare Simulation\\CASimulation\\output\\paper_selected\\policy_evolution_figure3_style_n16.gif"
 }

@@ -1,13 +1,18 @@
 # Inclusive Healthcare Simulation
 
-An agent-based, multi-agent reinforcement learning simulation for studying inclusive healthcare policy in inequity contexts.
+Imagine policy-makers could anticipate the impact of inclusive legal policies using a simulation tool.
+Imagine they could explore how policies affect the most disadvantaged groups of people in specific contexts, such as people experiencing homelessness (PEH) in healthcare. 
 
-The project models people experiencing homelessness (PEH) in a grid-based healthcare and social-service environment. PEH agents learn strategies under two policy scenarios:
+This repository contains the first step towards this goal: an agent-based simulation framework for policy design in inequity contexts. We define a **multi-agent reinforcement learning** (MARL) environment where agents behave to restore their capabilities under the constraints of a given policy.
+
+PEH agents learn strategies under two policy scenarios:
 
 - `policy OFF`: medical attention is available only to registered PEH agents.
-- `policy ON`: inclusive healthcare is active, so medical attention is available regardless of registration.
+- `policy ON`: medical attention is available regardless of registration.
 
-The simulation tracks rewards, health, registration, social-service engagement, government spending, and Capability Approach outcomes such as Bodily Health and Affiliation.
+The simulation tracks optimal rewards, strategies, health and registration states, social-service engagement, government spending, and individual central capabilities such as Bodily Health and Affiliation. We track their opportunities (capabilities), and see how these are deprived, restored or even expanded at different instants of time.
+
+Building upon [Aguilera et al. (2024)](https://arxiv.org/abs/2503.18389), *Agent-based Modeling meets the Capability Approach for Human Development: Simulating Homelessness Policy-making*. arXiv:2503.18389 [cs.AI], and [Aguilera et al. (2025)](https://arxiv.org/abs/2507.23644), *Agents trusting Agents? Restoring Lost Capabilities with Inclusive Healthcare*. arXiv:2507.23644 [cs.AI].
 
 ## Documentation
 
@@ -37,34 +42,12 @@ Generate synthetic population data and calibration artifacts:
 python -m learning.synthetic_data
 ```
 
-Run the deterministic multi-seed PBRS/Q-learning experiment:
+Run the deterministic multi-seed PBRS/Q-learning experiment, the scalability analysis and generate paper-ready figures:
 
 ```bash
 python -m learning.qpbrs_seeds --seeds 0 1 2 3 4
-```
-
-Run the scalability analysis:
-
-```bash
 python -m learning.qpbrs_scalability
-```
-
-Generate paper-ready figures:
-
-```bash
 python -m learning.paper_figures
-```
-
-Generate a fast preview before the full paper export:
-
-```bash
-python -m learning.paper_figures --preview --num-peh-values 16 25
-```
-
-Generate the Figure 3 style policy-evolution GIF used in the README:
-
-```bash
-python generate_gif.py
 ```
 
 For a fast smoke test:
@@ -80,20 +63,6 @@ Runs write results under `output/`, usually in timestamped folders:
 - `output/robustness_seeds/run_<timestamp>/`
 - `output/scalability/run_<timestamp>/`
 - `output/paper_ready/run_<timestamp>/`
-
-Common artifacts include:
-
-- `training_episodes.csv`
-- `eval_steps.csv`
-- `eval_agents.csv`
-- `eval_summary_by_seed.csv`
-- `eval_summary_aggregated.csv`
-- `strategy_by_seed.csv`
-- `strategy_summary_aggregated.csv`
-- `policy_difference.csv`
-- `summary.md`
-- `summary.json`
-- `figures/`
 
 ## Example Visual Output
 

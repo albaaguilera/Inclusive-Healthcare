@@ -26,15 +26,13 @@ Start with the documentation index:
 - [Experiments and Outputs](docs/experiments_and_outputs.md)
 - [Project Structure](docs/project_structure.md)
 
-## Installation
+## Main Commands
 
 From the repository root:
 
 ```bash
 pip install -r requirements.txt
 ```
-
-## Main Commands
 
 Generate synthetic population data and calibration artifacts:
 
@@ -70,7 +68,7 @@ Figure 3 style policy evolution comparison for `N=16`, `N_sw=20`, `size=7`:
 
 ![Policy evolution comparison](output/paper_selected/policy_evolution_figure3_style_n16.gif)
 
-Selected paper figures:
+Paper figures:
 
 - `N=16`: [Figure 3](output/paper_selected/n16/figure3_dumbbell.png)
 - `N=25`: [Figure 3](output/paper_selected/n25/figure3_dumbbell.png)
@@ -82,8 +80,6 @@ Example scalability plots:
 ![Scalability score](output/paper_selected/scalability/equilibrium_preservation_score.png)
 
 ![Policy gaps by scale](output/paper_selected/scalability/policy_gaps_by_scale.png)
-
-![Strategy alignment by scale](output/paper_selected/scalability/strategy_alignment_by_scale.png)
 
 The latest selected scalability summary is stored in:
 

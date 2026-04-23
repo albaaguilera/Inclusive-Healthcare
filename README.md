@@ -1,35 +1,133 @@
 # Inclusive Healthcare Simulation
 
-Imagine policy-makers could anticipate the impact of inclusive legal policies using a simulation tool.
-Imagine they could explore how policies affect the most disadvantaged groups of people in specific contexts, such as people experiencing homelessness (PEH) in healthcare. 
+An agent-based, multi-agent reinforcement learning simulation for studying inclusive healthcare policy in inequity contexts.
 
-This repository contains the first step towards this goal: an agent-based simulation framework for policy design in inequity contexts. We define a **multi-agent reinforcement learning** (MARL) environment where agents behave to restore their capabilities under the constraints of a given policy, and examine how well are they able to thrive in different scenarios. We specifically track their opportunities (capabilities), and see how these are deprived, restored or even expanded at different instants of time. 
+The project models people experiencing homelessness (PEH) in a grid-based healthcare and social-service environment. PEH agents learn strategies under two policy scenarios:
 
-These are the learnt strategies and outcomes with POLICY ON and POLICY OFF for N = 4 PEH agents, M= 8 social worker agents and S = 7x7 environment size: 
+- `policy OFF`: medical attention is available only to registered PEH agents.
+- `policy ON`: inclusive healthcare is active, so medical attention is available regardless of registration.
 
-## Effect of Inclusive Healthcare ON vs OFF
-![Comparison](output/run_20260130-125815/policy_evolution_comparison.gif)
+The simulation tracks rewards, health, registration, social-service engagement, government spending, and Capability Approach outcomes such as Bodily Health and Affiliation.
 
-Building upon [Aguilera et al. (2024)](https://arxiv.org/abs/2503.18389) — *Agent-based Modeling meets the Capability Approach for Human Development: Simulating Homelessness Policy-making*. arXiv:2503.18389 [cs.AI] and [Aguilera et al. (2025)](https://arxiv.org/abs/2507.23644) — *Agents Trusting Agents? Restoring Lost Capabilities with Inclusive Healthcare*. arXiv:2507.23644 [cs.AI] 
+## Documentation
 
-# Optimal Results 
-Using Q-learning and PBRS, this is the optimal strategy of the environment:
-![Results](output/results.png)
+Start with the documentation index:
 
-To obtain these results, execute from root directory: python -m learning.qpbrs
-
-## Features 
-- Heterogenous agent behaviour: profile-dependent reward shaping
-- Binary state transitions: environmental and legal constraints
-- Capability expansion/restoration tracking: bodily health and affiliation
-
-## Next Steps 
-- Scale the number of agents
-- Visualize it in OSM space
-- Expand the action and state space for a holistic modelling and evaluation
+- [Docs README](docs/README.md)
+- [Simulation Overview](docs/simulation.md)
+- [Agent Behavior](docs/agents.md)
+- [Learning Algorithm](docs/learning_algorithm.md)
+- [Synthetic Data and Calibration](docs/synthetic_data_and_calibration.md)
+- [Experiments and Outputs](docs/experiments_and_outputs.md)
+- [Project Structure](docs/project_structure.md)
 
 ## Installation
+
+From the repository root:
+
 ```bash
 pip install -r requirements.txt
-python -m learning.synthetic_data  # generates synthetic population and calibrated parameters based on data
-python -m learning.qpbrs # generates pbrs learning and policy evaluation results for a particular N and S
+```
+
+## Main Commands
+
+Generate synthetic population data and calibration artifacts:
+
+```bash
+python -m learning.synthetic_data
+```
+
+Run the deterministic multi-seed PBRS/Q-learning experiment:
+
+```bash
+python -m learning.qpbrs_seeds --seeds 0 1 2 3 4
+```
+
+Run the scalability analysis:
+
+```bash
+python -m learning.qpbrs_scalability
+```
+
+Generate paper-ready figures:
+
+```bash
+python -m learning.paper_figures
+```
+
+Generate a fast preview before the full paper export:
+
+```bash
+python -m learning.paper_figures --preview --num-peh-values 16 25
+```
+
+Generate the Figure 3 style policy-evolution GIF used in the README:
+
+```bash
+python generate_gif.py
+```
+
+For a fast smoke test:
+
+```bash
+python -m learning.qpbrs_seeds --seeds 0 --episodes 5 --train-max-steps 20 --eval-max-steps 50
+```
+
+## Outputs
+
+Runs write results under `output/`, usually in timestamped folders:
+
+- `output/robustness_seeds/run_<timestamp>/`
+- `output/scalability/run_<timestamp>/`
+- `output/paper_ready/run_<timestamp>/`
+
+Common artifacts include:
+
+- `training_episodes.csv`
+- `eval_steps.csv`
+- `eval_agents.csv`
+- `eval_summary_by_seed.csv`
+- `eval_summary_aggregated.csv`
+- `strategy_by_seed.csv`
+- `strategy_summary_aggregated.csv`
+- `policy_difference.csv`
+- `summary.md`
+- `summary.json`
+- `figures/`
+
+## Example Visual Output
+
+Figure 3 style policy evolution comparison for `N=16`, `N_sw=20`, `size=7`:
+
+![Policy evolution comparison](output/paper_selected/policy_evolution_figure3_style_n16.gif)
+
+Selected paper figures:
+
+- `N=16`: [Figure 3](output/paper_selected/n16/figure3_dumbbell.png)
+- `N=25`: [Figure 3](output/paper_selected/n25/figure3_dumbbell.png)
+- `N=16`: [Figure 2 OFF rewards](output/paper_selected/n16/figure2_policy_off_rewards.png)
+- `N=16`: [Figure 2 OFF strategies](output/paper_selected/n16/figure2_policy_off_strategies.png)
+
+Example scalability plots:
+
+![Scalability score](output/paper_selected/scalability/equilibrium_preservation_score.png)
+
+![Policy gaps by scale](output/paper_selected/scalability/policy_gaps_by_scale.png)
+
+![Strategy alignment by scale](output/paper_selected/scalability/strategy_alignment_by_scale.png)
+
+The latest selected scalability summary is stored in:
+
+- `output/paper_selected/scalability/summary.md`
+- `output/paper_selected/scalability/scalability_summary.csv`
+
+## Research Context
+
+This project builds on:
+
+- Aguilera et al. (2024), *Agent-based Modeling meets the Capability Approach for Human Development: Simulating Homelessness Policy-making*, arXiv:2503.18389.
+- Aguilera et al. (2025), *Agents Trusting Agents? Restoring Lost Capabilities with Inclusive Healthcare*, arXiv:2507.23644.
+
+## Current Focus
+
+The most reproducible experiment path is `learning.qpbrs_seeds`, with `learning.qpbrs_scalability` for scale analysis, `learning.paper_figures` for manuscript-style outputs, and `generate_gif.py` for the Figure 3 style evolution GIF. Earlier scripts such as `learning.qpbrs` and `learning.qlearningMAexplore` remain useful for exploration and historical context.

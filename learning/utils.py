@@ -2198,68 +2198,54 @@ def plot_policy_summary_comparison(
     font_small=12,
 
     # new display settings
-    xlim=(0.0, 1.1),
+    xlim=(0.0, 1.22),
     xlabel="Population (%)",
+    summary_on=None,
+    summary_off=None,
+    save_path=None,
+    show=True,
 ):
     """
     2x2:
       Row1: ON  -> [Grid | Capabilities + Functionings + Costs]
       Row2: OFF -> [Grid | Capabilities + Functionings + Costs]
 
-    Inputs are traces and envs (qpbrs style).
+    Inputs are traces and envs (qpbrs style). When `summary_on` / `summary_off`
+    are provided, the right-hand panels use robustness summaries (mean +/- std
+    across seeds) while the left-hand side still shows representative final
+    environments.
     """
+    GROUP_ORDER_LOCAL = ["NONREG_LOW", "NONREG_MOD", "REG_LOW", "REG_MOD"]
+    GROUP_SHORT_LABELS = {
+        "NONREG_LOW": "Non-reg + low",
+        "NONREG_MOD": "Non-reg + mod",
+        "REG_LOW": "Reg + low",
+        "REG_MOD": "Reg + mod",
+    }
+
     def _fmt_pct(x):
         if x is None or (isinstance(x, float) and not np.isfinite(x)):
             return "NA"
-        return f"{100.0*float(x):.0f}%"
+        return f"{100.0 * float(x):.0f}%"
 
-    def _round_key(v, nd=3):
-        # robust key for floats in [0,1]; nd=3 => 0.001 resolution
-        if not np.isfinite(v):
-            return None
-        return round(float(v), nd)
+    def _fmt_pct_pm(mean, std):
+        if mean is None or (isinstance(mean, float) and not np.isfinite(mean)):
+            return "NA"
+        std = 0.0 if std is None or not np.isfinite(std) else float(std)
+        return f"{100.0 * float(mean):.0f} +/- {100.0 * std:.0f}%"
 
-    def _merge_equal_groups(items, nd=3):
-        """
-        items: list of dicts with keys: group, init, final
-        returns: list of merged dicts with keys: groups(list), init, final
-        """
-        buckets = {}
-        for it in items:
-            ini = 0.0 if not np.isfinite(it["init"]) else float(it["init"])
-            fin = 0.0 if not np.isfinite(it["final"]) else float(it["final"])
-            key = (_round_key(ini, nd), _round_key(fin, nd))
-            buckets.setdefault(key, {"groups": [], "init": ini, "final": fin})
-            buckets[key]["groups"].append(it["group"])
+    def _fmt_eur_pm(mean, std):
+        if mean is None or (isinstance(mean, float) and not np.isfinite(mean)):
+            return "NA"
+        std = 0.0 if std is None or not np.isfinite(std) else float(std)
+        return f"{float(mean):.0f} +/- {std:.0f} EUR"
 
-        # keep deterministic order: sort by bar length descending then label
-        merged = list(buckets.values())
-        merged.sort(key=lambda d: (-max(d["init"], d["final"]), ",".join(d["groups"])))
-        return merged
-
-    def _groups_label(gs):
-        # nicer label in the plot when merged
-        if set(gs) == set(["NONREG_LOW","NONREG_MOD","REG_LOW","REG_MOD"]):
-            return "All groups"
-        # short names
-        short = {
-            "NONREG_LOW": "Non-reg + low",
-            "NONREG_MOD": "Non-reg + mod",
-            "REG_LOW": "Reg + low",
-            "REG_MOD": "Reg + mod",
-        }
-        return ", ".join(short[g] for g in gs)
-
-
-    GROUP_ORDER = ["NONREG_LOW", "NONREG_MOD", "REG_LOW", "REG_MOD"]
-
-    # ---------------- helpers ----------------
-    def group_key_from_initial(init_admin, init_trust, ag):
-        admin0 = init_admin.get(ag, "")
-        trust0 = init_trust.get(ag, "")
-        admin = "NONREG" if str(admin0) == "non-registered" else "REG"
-        trust = "LOW" if str(trust0) == "LOW_TRUST" else "MOD"
-        return f"{admin}_{trust}"
+    def _style_summary_axis(ax):
+        ax.set_facecolor("white")
+        for spine in ax.spines.values():
+            spine.set_color("0.55")
+            spine.set_linewidth(0.9)
+        ax.tick_params(axis="both", which="both", length=0, color="0.45")
 
     def _get_locations(env):
         ctx = getattr(env, "context", None)
@@ -2276,34 +2262,6 @@ def plot_policy_summary_comparison(
             dx = jitter * np.cos(ang)
             dy = jitter * np.sin(ang)
             ax.scatter(x + 0.5 + dx, y + 0.5 + dy, s=50, color="grey", edgecolors="none", zorder=2)
-
-    def _cap_init_final_by_group(bh_trace, af_trace, init_admin, init_trust):
-        bh_init = {g: [] for g in GROUP_ORDER}
-        bh_final = {g: [] for g in GROUP_ORDER}
-        af_init = {g: [] for g in GROUP_ORDER}
-        af_final = {g: [] for g in GROUP_ORDER}
-
-        for ag in bh_trace.keys():
-            g = group_key_from_initial(init_admin, init_trust, ag)
-            if g not in bh_init:
-                continue
-            bh_seq = bh_trace.get(ag, [])
-            af_seq = af_trace.get(ag, [])
-            if len(bh_seq) > 0:
-                bh_init[g].append(float(bh_seq[0]))
-                bh_final[g].append(float(bh_seq[-1]))
-            if len(af_seq) > 0:
-                af_init[g].append(float(af_seq[0]))
-                af_final[g].append(float(af_seq[-1]))
-
-        def m(v): 
-            return float(np.mean(v)) if len(v) else np.nan
-
-        bh_i = {g: m(bh_init[g]) for g in GROUP_ORDER}
-        bh_f = {g: m(bh_final[g]) for g in GROUP_ORDER}
-        af_i = {g: m(af_init[g]) for g in GROUP_ORDER}
-        af_f = {g: m(af_final[g]) for g in GROUP_ORDER}
-        return bh_i, bh_f, af_i, af_f
 
     def _functionings_shares(health_trace, admin_trace):
         agents = list(health_trace.keys())
@@ -2328,20 +2286,23 @@ def plot_policy_summary_comparison(
         final_reg = float(np.mean(np.array(aT) == 1))
         return init_healthy, final_healthy, init_reg, final_reg
 
-    def _fmt_pct(x):
-        if x is None or (isinstance(x, float) and not np.isfinite(x)):
-            return "NA"
-        return f"{100.0*float(x):.0f}%"
-
-    def _bar_with_text(ax, y, value, color, text, height=0.32, alpha=0.85):
-        ax.barh(y, value, height=height, color=color, alpha=alpha)
-        # text inside (or slightly outside if very small)
-        x_text = min(max(value, 0.02), xlim[1] - 0.02)
-        ha = "right" if value > 0.18 else "left"
+    def _bar_with_text(ax, y, value, color, text, *, xerr=None, height=0.26, alpha=0.85):
+        ax.barh(
+            y,
+            value,
+            height=height,
+            color=color,
+            alpha=alpha,
+            xerr=xerr,
+            error_kw={"elinewidth": 1.1, "capsize": 3, "capthick": 1.1, "ecolor": "0.25"},
+        )
+        x_span = xlim[1] - xlim[0]
+        x_text = xlim[0] + 0.17 * x_span
         ax.text(
             x_text, y, text,
-            va="center", ha=ha,
-            fontsize=font_small, color="black"
+            va="center", ha="left",
+            fontsize=font_small, color="#1f1f1f",
+            bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.60, "pad": 0.15},
         )
 
     def _draw_grid(ax, env, title):
@@ -2353,7 +2314,8 @@ def plot_policy_summary_comparison(
         ax.set_xticks(np.arange(0, size+1)); ax.set_yticks(np.arange(0, size+1))
         ax.grid(True, color="black", linewidth=1)
         ax.tick_params(labelbottom=False, labelleft=False)
-        ax.set_title(title, fontsize=font_big, pad=8)
+        if title:
+            ax.set_title(title, fontsize=font_big, pad=8)
 
         colour_map = {"PHC": "#d0d0ff", "ICU": "#7fa8ff", "SocialService": "#f0f0f0"}
         label_map  = {"PHC": "PHC", "ICU": "ICU", "SocialService": "Social\nServices"}
@@ -2370,27 +2332,13 @@ def plot_policy_summary_comparison(
 
         _draw_social_workers(ax, env)
 
-        # PEH finals: only linestyle by admin final, fill by health
         for ag in env.possible_agents:
             idx = env.agent_name_mapping[ag]
             peh = env.peh_agents[idx]
             x, y = peh.location
             face = health_to_color(peh.health_state, alpha=0.95)
             is_reg = (peh.administrative_state == "registered")
-            ls = "-" if is_reg else "--"
-            circ = plt.Circle((x+0.5, y+0.5), radius=0.35,
-                              facecolor=face, edgecolor="black",
-                              linewidth=2.0, linestyle=ls, zorder=3)
-            ax.add_patch(circ)
-        
-            # PEH finals: only linestyle by admin final, fill by health
-        for ag in env.possible_agents:
-            idx = env.agent_name_mapping[ag]
-            peh = env.peh_agents[idx]
-            x, y = peh.location
-            face = health_to_color(peh.health_state, alpha=0.95)
-            is_reg = (peh.administrative_state == "registered")
-            ls = "-" if is_reg else "--"
+            ls = "-" if is_reg else (0, (3, 2))
             circ = plt.Circle(
                 (x+0.5, y+0.5), radius=0.35,
                 facecolor=face, edgecolor="black",
@@ -2398,17 +2346,20 @@ def plot_policy_summary_comparison(
             )
             ax.add_patch(circ)
 
-            # ---- small legend for color and linestyle ----
-            legend_elements = [
-                Patch(facecolor=health_to_color(4.0, alpha=0.95),
-                    edgecolor="black", label="healthy"),
-                Patch(facecolor=health_to_color(1.0, alpha=0.95),
-                    edgecolor="black", label="hospitalized"),
-                Line2D([0], [0], color="black", linestyle="-",
-                    linewidth=2.0, label="registered"),
-                Line2D([0], [0], color="black", linestyle="--",
-                    linewidth=2.0, label="non-registered"),
-            ]
+        legend_elements = [
+            Patch(
+                facecolor=health_to_color(4.0, alpha=0.95),
+                edgecolor="black",
+                label="healthy",
+            ),
+            Patch(
+                facecolor=health_to_color(1.0, alpha=0.95),
+                edgecolor="black",
+                label="hospitalized",
+            ),
+            Line2D([0], [0], color="black", linestyle="-", linewidth=2.0, label="registered"),
+            Line2D([0], [0], color="black", linestyle=(0, (3, 2)), linewidth=2.0, label="non-registered"),
+        ]
 
         ax.legend(
             handles=legend_elements,
@@ -2420,219 +2371,199 @@ def plot_policy_summary_comparison(
             handlelength=2.5,
         )
 
-    def _draw_right(ax_caps, ax_fun, ax_cost, env,
-                    bh_trace, af_trace, health_trace, admin_trace,
-                    init_admin, init_trust,
-                    init_health_budget, init_social_budget):
-        GROUP_LABELS_LONG = {
-            "NONREG_LOW": "Non-reg + low trust",
-            "NONREG_MOD": "Non-reg + mod trust",
-            "REG_LOW":    "Reg + low trust",
-            "REG_MOD":    "Reg + mod trust",
-        }
-        # ----- Capabilities -----
-        ax_caps.set_title("Capabilities (agents' actions)", loc="left",
-                        fontsize=font_med, pad=4, fontweight="bold")
-
-        # keep your x padding so bars don't touch the frame
-        ax_caps.set_xlim(0.0, 1.15)
-        ax_caps.grid(axis="x", alpha=0.15)
+    def _draw_capabilities(ax_caps, bh_trace, af_trace, init_admin, init_trust, summary_stats=None):
+        ax_caps.set_title("Capabilities (agents' actions)", loc="left", fontsize=font_med, pad=4, fontweight="bold")
+        _style_summary_axis(ax_caps)
+        ax_caps.set_xlim(*xlim)
+        ax_caps.grid(axis="x", color="0.90", linewidth=0.8)
         ax_caps.set_xticks([])
 
-        # green if improves/keeps, red if worse
-        c_good = health_to_color(4.0, alpha=0.95)   # your green-ish
-        c_bad  = health_to_color(1.0, alpha=0.95)   # your red-ish
-
-        def _bar_color(init_v, fin_v):
-            return c_good if fin_v >= init_v else c_bad
-
-        def _fmt_pct(x):
-            if x is None or (isinstance(x, float) and not np.isfinite(x)):
-                return "NA"
-            return f"{100.0*float(x):.0f}%"
-
-        def _round_key(v, nd=3):
-            if not np.isfinite(v):
-                return None
-            return round(float(v), nd)
-
-        def _merge_equal_groups(items, nd=3):
-            buckets = {}
-            for it in items:
-                ini = 0.0 if not np.isfinite(it["init"]) else float(it["init"])
-                fin = 0.0 if not np.isfinite(it["final"]) else float(it["final"])
-                key = (_round_key(ini, nd), _round_key(fin, nd))
-                buckets.setdefault(key, {"groups": [], "init": ini, "final": fin})
-                buckets[key]["groups"].append(it["group"])
-            merged = list(buckets.values())
-            merged.sort(key=lambda d: (-max(d["init"], d["final"]), ",".join(d["groups"])))
-            return merged
-
-        def _groups_label(gs):
-            if set(gs) == set(["NONREG_LOW","NONREG_MOD","REG_LOW","REG_MOD"]):
-                return "All groups"
-            short = {
-                "NONREG_LOW": "Non-reg + low",
-                "NONREG_MOD": "Non-reg + mod",
-                "REG_LOW": "Reg + low",
-                "REG_MOD": "Reg + mod",
-            }
-            return ", ".join(short[g] for g in gs)
-
-        # group means (your existing helper)
-        groups, bh_init, bh_final, af_init, af_final = _cap_agg_by_group(
-            bh_trace, af_trace, init_admin, init_trust
-        )
-        
-        # items per capability
-        bh_items = [{"group": g, "init": bh_init[i], "final": bh_final[i]} for i, g in enumerate(groups)]
-        af_items = [{"group": g, "init": af_init[i], "final": af_final[i]} for i, g in enumerate(groups)]
-
-        # merged buckets for Affiliation (can be multiple rows)
-        bh_merged = _merge_equal_groups(bh_items, nd=3)
-        af_merged = _merge_equal_groups(af_items, nd=3)
-        
-        y_BH, y_AF = 1.0, 0.0
-        max_lines = max(len(bh_merged), len(af_merged), 1)
-        
-        if max_lines == 1:
-            offsets = np.array([0.0])
-        else:
-            # tighter than before to reduce height
-            offsets = np.linspace(+0.16, -0.16, max_lines)
-
-        bar_h = 0.12  # slightly thinner to save space
-
-        # Track all y positions we actually used so we can set a tight ylim
+        c_good = health_to_color(4.0, alpha=0.95)
+        c_bad = health_to_color(1.0, alpha=0.95)
         used_y = []
 
-        def _draw_cap_row(y_center, merged_list):
-            for k, d in enumerate(merged_list):
-                yi = y_center + offsets[k]
-                used_y.append(yi)
+        if summary_stats is None:
+            groups, bh_init, bh_final, af_init, af_final = _cap_agg_by_group(
+                bh_trace,
+                af_trace,
+                init_admin,
+                init_trust,
+            )
+            bh_ini_all = float(np.nanmean(bh_init)) if len(bh_init) else np.nan
+            bh_fin_all = float(np.nanmean(bh_final)) if len(bh_final) else np.nan
+            y_bh = 1.0
+            used_y.append(y_bh)
+            _bar_with_text(
+                ax_caps,
+                y_bh,
+                0.0 if not np.isfinite(bh_fin_all) else bh_fin_all,
+                c_good if bh_fin_all >= bh_ini_all else c_bad,
+                f"All groups | Init {_fmt_pct(bh_ini_all)} | Final {_fmt_pct(bh_fin_all)}",
+            )
 
-                ini = 0.0 if not np.isfinite(d["init"]) else float(d["init"])
-                fin = 0.0 if not np.isfinite(d["final"]) else float(d["final"])
-                v = max(ini, fin)
+            af_offsets = np.linspace(0.24, -0.24, len(groups))
+            for offset, group, init_v, final_v in zip(af_offsets, groups, af_init, af_final):
+                y = offset
+                used_y.append(y)
+                _bar_with_text(
+                    ax_caps,
+                    y,
+                    0.0 if not np.isfinite(final_v) else final_v,
+                    c_good if final_v >= init_v else c_bad,
+                    f"{GROUP_SHORT_LABELS[group]} | Init {_fmt_pct(init_v)} | Final {_fmt_pct(final_v)}",
+                    height=0.14,
+                    alpha=0.78,
+                )
+        else:
+            bh_stats = summary_stats["capabilities"]["bodily_health_all"]
+            y_bh = 1.0
+            used_y.append(y_bh)
+            _bar_with_text(
+                ax_caps,
+                y_bh,
+                bh_stats["final_mean"],
+                c_good if bh_stats["final_mean"] >= bh_stats["initial_mean"] else c_bad,
+                (
+                    "All groups | Init "
+                    f"{_fmt_pct_pm(bh_stats['initial_mean'], bh_stats['initial_std'])} | "
+                    f"Final {_fmt_pct_pm(bh_stats['final_mean'], bh_stats['final_std'])}"
+                ),
+                xerr=bh_stats["final_std"],
+            )
 
-                col = _bar_color(ini, fin)
+            af_offsets = np.linspace(0.24, -0.24, len(GROUP_ORDER_LOCAL))
+            for offset, group in zip(af_offsets, GROUP_ORDER_LOCAL):
+                stats = summary_stats["capabilities"]["affiliation_groups"].get(group)
+                if stats is None:
+                    continue
+                used_y.append(offset)
+                _bar_with_text(
+                    ax_caps,
+                    offset,
+                    stats["final_mean"],
+                    c_good if stats["final_mean"] >= stats["initial_mean"] else c_bad,
+                    (
+                        f"{GROUP_SHORT_LABELS[group]} | Init "
+                        f"{_fmt_pct_pm(stats['initial_mean'], stats['initial_std'])} | "
+                        f"Final {_fmt_pct_pm(stats['final_mean'], stats['final_std'])}"
+                    ),
+                    xerr=stats["final_std"],
+                    height=0.14,
+                    alpha=0.78,
+                )
 
-                # your original readable style: filled bar, text inside
-                ax_caps.barh(yi, v, height=bar_h, color=col, alpha=0.75)
-
-                label = _groups_label(d["groups"])
-                txt = f"{label}  |  Initial: {_fmt_pct(ini)}   Final: {_fmt_pct(fin)}"
-                x_text = min(max(v, 0.03), 1.12)
-                ha = "right" if v > 0.35 else "left"
-                ax_caps.text(x_text, yi, txt, va="center", ha=ha,
-                            fontsize=font_small, color="black")
-
-        # --- Bodily Health as a single aggregated bar (no blank space) ---
-        # Aggregate across groups using nanmean
-        bh_inis  = [v for v in bh_init if np.isfinite(v)] if isinstance(bh_init, (list, tuple)) else [bh_init[i] for i in range(len(groups))]
-        bh_fins  = [v for v in bh_final if np.isfinite(v)] if isinstance(bh_final, (list, tuple)) else [bh_final[i] for i in range(len(groups))]
-        try:
-            ini_all = float(np.nanmean(bh_inis)) if len(bh_inis) else 0.0
-        except Exception:
-            ini_all = 0.0
-        try:
-            fin_all = float(np.nanmean(bh_fins)) if len(bh_fins) else 0.0
-        except Exception:
-            fin_all = 0.0
-
-        v_all = max(ini_all, fin_all)
-        col_all = _bar_color(ini_all, fin_all)
-        used_y.append(y_BH)
-        ax_caps.barh(y_BH, v_all, height=bar_h, color=col_all, alpha=0.75)
-        txt_all = f"All groups  |  Initial: {_fmt_pct(ini_all)}   Final: {_fmt_pct(fin_all)}"
-        x_text = min(max(v_all, 0.03), 1.12)
-        ha = "right" if v_all > 0.35 else "left"
-        ax_caps.text(x_text, y_BH, txt_all, va="center", ha=ha, fontsize=font_small, color="black")
-
-        # --- Affiliation rows (merged by identical values) ---
-        _draw_cap_row(y_AF, af_merged)
-
-        # y tick labels (with line break)
-        ax_caps.set_yticks([y_BH, y_AF])
+        ax_caps.set_yticks([1.0, 0.0])
         ax_caps.set_yticklabels(["Bodily\nhealth", "Affiliation"], fontsize=font_small)
-
-        # --- THIS is the key: remove blank space between BH and AF by tightening ylim ---
         if used_y:
-            y_min = min(used_y) - (bar_h/2 + 0.08)
-            y_max = max(used_y) + (bar_h/2 + 0.08)
-            ax_caps.set_ylim(y_min, y_max)
+            ax_caps.set_ylim(min(used_y) - 0.18, max(used_y) + 0.18)
 
-
-        # ----- Functionings -----
-        # ----- Functionings -----
+    def _draw_functionings(ax_fun, health_trace, admin_trace, summary_stats=None):
         ax_fun.set_title("Functionings (agents' state)", loc="left", fontsize=font_med, pad=4, fontweight="bold")
+        _style_summary_axis(ax_fun)
         ax_fun.set_xlim(*xlim)
-        ax_fun.set_ylim(0.0, 1.0)          # <- important: compacte vertical
-        ax_fun.grid(axis="x", alpha=0.15)
-
-        ax_fun.set_xlabel("Population (%)", fontsize=font_small)
+        ax_fun.set_ylim(0.0, 1.0)
+        ax_fun.grid(axis="x", color="0.90", linewidth=0.8)
+        ax_fun.set_xlabel(xlabel, fontsize=font_small)
         ax_fun.tick_params(axis="x", labelbottom=False)
         ax_fun.set_xticks([])
 
-        init_healthy, final_healthy, init_reg, final_reg = _functionings_shares(health_trace, admin_trace)
-
-        # colors using health extremes (green/red)
-        c_bad  = health_to_color(1.0, alpha=0.95)
         c_good = health_to_color(4.0, alpha=0.95)
+        c_bad = health_to_color(1.0, alpha=0.95)
 
-        # choose bar length as max(init, final)
-        healthy_v = final_healthy
-        reg_v     = final_reg
+        if summary_stats is None:
+            init_healthy, final_healthy, init_reg, final_reg = _functionings_shares(health_trace, admin_trace)
+            rows = [
+                ("Healthy", init_healthy, 0.0, final_healthy, 0.0),
+                ("Registered", init_reg, 0.0, final_reg, 0.0),
+            ]
+        else:
+            rows = [
+                (
+                    "Healthy",
+                    summary_stats["functionings"]["Healthy"]["initial_mean"],
+                    summary_stats["functionings"]["Healthy"]["initial_std"],
+                    summary_stats["functionings"]["Healthy"]["final_mean"],
+                    summary_stats["functionings"]["Healthy"]["final_std"],
+                ),
+                (
+                    "Registered",
+                    summary_stats["functionings"]["Registered"]["initial_mean"],
+                    summary_stats["functionings"]["Registered"]["initial_std"],
+                    summary_stats["functionings"]["Registered"]["final_mean"],
+                    summary_stats["functionings"]["Registered"]["final_std"],
+                ),
+            ]
 
-        healthy_col = c_good if final_healthy >= init_healthy else c_bad
-        reg_col     = c_good if final_reg >= init_reg else c_bad
-
-        # y positions close together (this is the key)
-        y_healthy = 0.62
-        y_reg     = 0.34
-        bar_h     = 0.22
-
-        _bar_with_text(
-            ax_fun, y_healthy, healthy_v, healthy_col,
-            f"Initial: {_fmt_pct(init_healthy)}   Final: {_fmt_pct(final_healthy)}",
-            height=bar_h, alpha=0.85
-        )
-        _bar_with_text(
-            ax_fun, y_reg, reg_v, reg_col,
-            f"Initial: {_fmt_pct(init_reg)}   Final: {_fmt_pct(final_reg)}",
-            height=bar_h, alpha=0.85
-        )
-
-        ax_fun.set_yticks([y_healthy, y_reg])
-        ax_fun.set_yticklabels(["Healthy", "Registered"], fontsize=font_small)
+        y_positions = [0.64, 0.32]
+        for y, (label, init_mean, init_std, final_mean, final_std) in zip(y_positions, rows):
+            _bar_with_text(
+                ax_fun,
+                y,
+                final_mean,
+                c_good if final_mean >= init_mean else c_bad,
+                (
+                    f"Init {_fmt_pct_pm(init_mean, init_std)} | "
+                    f"Final {_fmt_pct_pm(final_mean, final_std)}"
+                )
+                if summary_stats is not None
+                else f"Init {_fmt_pct(init_mean)} | Final {_fmt_pct(final_mean)}",
+                xerr=(None if summary_stats is None else final_std),
+                height=0.22,
+            )
+        ax_fun.set_yticks(y_positions)
+        ax_fun.set_yticklabels([row[0] for row in rows], fontsize=font_small)
         ax_fun.margins(y=0.0)
 
-        # ----- Costs (delta final - initial; negative if spend) -----
-        ctx = getattr(env, "context", None)
-        fin_h = float(getattr(ctx, "healthcare_budget", init_health_budget))
-        fin_s = float(getattr(ctx, "social_service_budget", init_social_budget))
-
-        delta_s = fin_s - float(init_social_budget)
-        delta_h = fin_h - float(init_health_budget)
-
+    def _draw_costs(ax_cost, env, init_health_budget, init_social_budget, summary_stats=None):
         ax_cost.axis("off")
-        # draw bold label and normal-weight values to the right
-        lbl = "Economic costs:     "
-        vals = f"      Social services = -1500 €  |  Healthcare = {delta_h:+.0f} €"
-        
+
+        if summary_stats is None:
+            ctx = getattr(env, "context", None)
+            fin_h = float(getattr(ctx, "healthcare_budget", init_health_budget))
+            fin_s = float(getattr(ctx, "social_service_budget", init_social_budget))
+            social_spend = float(init_social_budget) - fin_s
+            healthcare_spend = float(init_health_budget) - fin_h
+            social_text = f"Social services = -{social_spend:.0f} EUR"
+            health_text = f"Healthcare = -{healthcare_spend:.0f} EUR"
+        else:
+            social_stats = summary_stats["costs"]["social_service_spend"]
+            health_stats = summary_stats["costs"]["healthcare_spend"]
+            social_text = f"Social services = -{_fmt_eur_pm(social_stats['mean'], social_stats['std'])}"
+            health_text = f"Healthcare = -{_fmt_eur_pm(health_stats['mean'], health_stats['std'])}"
+
         ax_cost.text(
-            0.00, 0.5, lbl,
+            0.00, 0.38, "Economic costs:",
             ha="left", va="center",
             fontsize=font_med, fontweight="bold",
             transform=ax_cost.transAxes,
         )
-
         ax_cost.text(
-            0.28, 0.5, vals,   # bump this from 0.22 -> 0.28 (or tweak)
+            0.22, 0.38, social_text,
             ha="left", va="center",
-            fontsize=font_med, alpha=0.9,
+            fontsize=font_med, color="0.30",
             transform=ax_cost.transAxes,
         )
+        ax_cost.text(
+            0.60, 0.38, "|",
+            ha="center", va="center",
+            fontsize=font_med, color="0.55",
+            transform=ax_cost.transAxes,
+        )
+        ax_cost.text(
+            0.64, 0.38, health_text,
+            ha="left", va="center",
+            fontsize=font_med, color="#c44e52",
+            transform=ax_cost.transAxes,
+        )
+
+    def _draw_right(ax_caps, ax_fun, ax_cost, env,
+                    bh_trace, af_trace, health_trace, admin_trace,
+                    init_admin, init_trust,
+                    init_health_budget, init_social_budget,
+                    summary_stats=None):
+        _draw_capabilities(ax_caps, bh_trace, af_trace, init_admin, init_trust, summary_stats=summary_stats)
+        _draw_functionings(ax_fun, health_trace, admin_trace, summary_stats=summary_stats)
+        _draw_costs(ax_cost, env, init_health_budget, init_social_budget, summary_stats=summary_stats)
     # ---------------- figure layout ----------------
     fig = plt.figure(figsize=figsize)
     gs = fig.add_gridspec(
@@ -2644,8 +2575,8 @@ def plot_policy_summary_comparison(
 
     # ON row
     ax_grid_on = fig.add_subplot(gs[0, 0])
-    gs_r_on  = gs[0, 1].subgridspec(3, 1, height_ratios=[0.90, 0.90, 0.15], hspace=0.55)
-    gs_r_off = gs[1, 1].subgridspec(3, 1, height_ratios=[1.50, 0.90, 0.15], hspace=0.55)
+    gs_r_on  = gs[0, 1].subgridspec(3, 1, height_ratios=[1.00, 0.92, 0.24], hspace=0.52)
+    gs_r_off = gs[1, 1].subgridspec(3, 1, height_ratios=[1.42, 0.92, 0.24], hspace=0.52)
 
     ax_caps_on = fig.add_subplot(gs_r_on[0, 0])
     ax_fun_on  = fig.add_subplot(gs_r_on[1, 0])
@@ -2663,18 +2594,25 @@ def plot_policy_summary_comparison(
     _draw_right(ax_caps_on, ax_fun_on, ax_cost_on,
                 env_on, bh_on, af_on, health_on, admin_on,
                 init_admin_on, init_trust_on,
-                init_health_budget_on, init_social_budget_on)
+                init_health_budget_on, init_social_budget_on,
+                summary_stats=summary_on)
 
     _draw_grid(ax_grid_off, env_off, title_off)
     _draw_right(ax_caps_off, ax_fun_off, ax_cost_off,
                 env_off, bh_off, af_off, health_off, admin_off,
                 init_admin_off, init_trust_off,
-                init_health_budget_off, init_social_budget_off)
+                init_health_budget_off, init_social_budget_off,
+                summary_stats=summary_off)
 
-    os.makedirs("output/figures", exist_ok=True)
-    plt.savefig("output/figures/policy_summary_comparison.png", dpi=300, bbox_inches="tight")
-    #plt.savefig("output/figures/policy_summary_comparison.pdf", bbox_inches="tight")
-    plt.show()
+    if save_path is None:
+        os.makedirs("output/figures", exist_ok=True)
+        save_path = "output/figures/policy_summary_comparison.png"
+
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
 
 # ------------------------------------------------------------
 # Save / load artifacts

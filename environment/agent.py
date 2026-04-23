@@ -21,7 +21,9 @@ class PEHAgent:
         personal_attributes=None,
         income=None,
         housing_state=None,
+        rng=None,
     ):
+        rng = rng if rng is not None else np.random.default_rng()
         self.location = start_loc.copy()
         self.health_state = float(health)
 
@@ -29,22 +31,22 @@ class PEHAgent:
         self.administrative_state = str(admin_state)
         self.trust_type = str(trust_type)
 
-        self.housing_state = housing_state if housing_state is not None else np.random.choice(["ETHOS0","ETHOS1","ETHOS2"])
+        self.housing_state = housing_state if housing_state is not None else rng.choice(["ETHOS0", "ETHOS1", "ETHOS2"])
         self.engagement_counter = 0
 
         base_attrs = {
-            "nationality": np.random.choice(["spanish", "non-spanish"]),
-            "age": int(np.random.randint(15, 75)),
-            "gender": np.random.choice(["male", "female", "non-binary"]),
-            "homelessness_duration": int(np.random.randint(1, 10)),
-            "history_of_abuse": bool(np.random.choice([True, False])),
+            "nationality": rng.choice(["spanish", "non-spanish"]),
+            "age": int(rng.integers(15, 75)),
+            "gender": rng.choice(["male", "female", "non-binary"]),
+            "homelessness_duration": int(rng.integers(1, 10)),
+            "history_of_abuse": bool(rng.choice([True, False])),
         }
         if personal_attributes:
             base_attrs.update(personal_attributes)
         self.personal_attributes = base_attrs
 
         if income is None:
-            income = float(np.random.uniform(80.0, 1200.0))
+            income = float(rng.uniform(80.0, 1200.0))
         self.income = float(income)
 
         self.min_health = 1.0
@@ -100,11 +102,12 @@ class PEHAgent:
     #     return False
 
 class SocServAgent:
-    def __init__(self,  location: tuple = None):
+    def __init__(self,  location: tuple = None, rng=None):
+        rng = rng if rng is not None else np.random.default_rng()
         self.location = (
             np.array(location, dtype=int)
             if location is not None
-            else np.random.randint(0, Context().grid_size, size=2)
+            else rng.integers(0, Context().grid_size, size=2)
         )
         self.num_socserv = 3
 

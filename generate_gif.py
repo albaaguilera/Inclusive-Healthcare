@@ -1,284 +1,404 @@
-# generate_evolution_gif.py
-import os
-os.environ['MPLBACKEND'] = 'Agg'  # ← Força backend sense display
+from __future__ import annotations
 
-import imageio
+import argparse
+import copy
+import json
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Tuple
+
 import numpy as np
+from PIL import Image
 import matplotlib
-matplotlib.use('Agg') 
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-import json
-from environment.model import GridMAInequityEnv
-from environment.context import Context
-from learning.utils import get_state, action_mask_from_classify, masked_argmax
-from learning.qpbrs import plot_policy_summary_comparison
-import io
-from PIL import Image
+from learning.qpbrs_seeds import (
+    DEFAULT_FEATURE_COLS,
+    DEFAULT_GROUP_ORDER,
+    ExperimentConfig,
+    PROJECT_ROOT,
+    _draw_cost_line,
+    _draw_environment_panel,
+    _plot_dumbbell_panel,
+    build_env,
+    initialize_capabilities,
+    load_irl,
+    load_profiles,
+    reset_env,
+    state_of,
+    train_policy,
+)
+from learning.utils import action_mask_from_classify, group_key_from_initial, masked_argmax
 
-def load_q_tables_and_profiles(run_dir):
-    """Load Q-tables and profiles from a run directory."""
-    models_dir = os.path.join(run_dir, "models")
-    
-    q_tables_on = np.load(os.path.join(models_dir, "q_tables_advice_ON.npy"), allow_pickle=True).item()
-    q_tables_off = np.load(os.path.join(models_dir, "q_tables_advice_OFF.npy"), allow_pickle=True).item()
-    
-    with open("output/peh_sample8.json", "r") as f:
-        profiles = json.load(f)
-    
-    return q_tables_on, q_tables_off, profiles
-def run_simulation_and_track(env, q_tables, max_steps=100, snapshot_interval=5):
-    """
-    Run simulation and track histories.
-    
-    Args:
-        snapshot_interval: Take a snapshot every N steps
-    """
-    
-    bh_trace = {ag: [] for ag in env.possible_agents}
-    af_trace = {ag: [] for ag in env.possible_agents}
-    health_trace = {ag: [] for ag in env.possible_agents}
-    admin_trace = {ag: [] for ag in env.possible_agents}
-    
-    init_admin = {}
-    init_trust = {}
-    
-    for ag in env.possible_agents:
-        idx = env.agent_name_mapping[ag]
-        peh = env.peh_agents[idx]
-        init_admin[ag] = peh.administrative_state
-        init_trust[ag] = peh.trust_type
-        
-        health_trace[ag].append(peh.health_state)
-        admin_trace[ag].append(1 if peh.administrative_state == "registered" else 0)
-        bh_trace[ag].append(0.0)
-        af_trace[ag].append(0.0)
-    
-    ctx = env.context
-    init_health_budget = getattr(ctx, "healthcare_budget", 10000.0)
-    init_social_budget = getattr(ctx, "social_service_budget", 5000.0)
-    
-    snapshots = []
-    step_count = 0
-    # ← snapshot_interval ara és un paràmetre, no fix
-    
-    # Initial snapshot
-    snapshots.append({
-        'step': 0,
-        'bh_trace': {k: list(v) for k, v in bh_trace.items()},
-        'af_trace': {k: list(v) for k, v in af_trace.items()},
-        'health_trace': {k: list(v) for k, v in health_trace.items()},
-        'admin_trace': {k: list(v) for k, v in admin_trace.items()},
-    })
-    
-    while env.agents and step_count < max_steps:
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate a policy evolution GIF using the current Figure 3 visual style."
+    )
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--num-peh", type=int, default=16)
+    parser.add_argument("--num-sw", type=int, default=20)
+    parser.add_argument("--size", type=int, default=7)
+    parser.add_argument("--episodes", type=int, default=400)
+    parser.add_argument("--train-max-steps", type=int, default=100)
+    parser.add_argument("--eval-max-steps", type=int, default=120)
+    parser.add_argument("--snapshot-interval", type=int, default=8)
+    parser.add_argument("--alpha", type=float, default=0.2)
+    parser.add_argument("--gamma", type=float, default=0.99)
+    parser.add_argument("--epsilon", type=float, default=0.1)
+    parser.add_argument("--eps-min", type=float, default=0.01)
+    parser.add_argument("--eps-decay", type=float, default=0.995)
+    parser.add_argument("--pbrs-beta", type=float, default=0.02)
+    parser.add_argument("--max-enc", type=int, default=10)
+    parser.add_argument("--max-noneng", type=int, default=10)
+    parser.add_argument("--healthy-threshold", type=float, default=3.0)
+    parser.add_argument(
+        "--output",
+        default=str(PROJECT_ROOT / "output" / "paper_selected" / "policy_evolution_figure3_style_n16.gif"),
+        help="Output GIF path.",
+    )
+    return parser.parse_args()
+
+
+def build_cfg(args: argparse.Namespace) -> ExperimentConfig:
+    return ExperimentConfig(
+        size=args.size,
+        num_peh=args.num_peh,
+        num_sw=args.num_sw,
+        episodes=args.episodes,
+        train_max_steps=args.train_max_steps,
+        eval_max_steps=args.eval_max_steps,
+        alpha=args.alpha,
+        gamma=args.gamma,
+        epsilon=args.epsilon,
+        eps_min=args.eps_min,
+        eps_decay=args.eps_decay,
+        pbrs_beta=args.pbrs_beta,
+        max_enc=args.max_enc,
+        max_noneng=args.max_noneng,
+        healthy_threshold=args.healthy_threshold,
+        seeds=(args.seed,),
+    )
+
+
+def _safe_mean(values: Iterable[float]) -> float:
+    vals = list(values)
+    return float(np.mean(vals)) if vals else float("nan")
+
+
+def _single_stats(initial: List[float], final: List[float]) -> Dict[str, float]:
+    return {
+        "initial_mean": _safe_mean(initial),
+        "initial_std": 0.0,
+        "final_mean": _safe_mean(final),
+        "final_std": 0.0,
+    }
+
+
+def build_snapshot_artifact(
+    env,
+    *,
+    scenario: str,
+    seed: int,
+    initial_admin: Dict[str, str],
+    initial_trust: Dict[str, str],
+    initial_health: Dict[str, float],
+    initial_cap_bh: Dict[str, float],
+    initial_cap_af: Dict[str, float],
+    init_health_budget: float,
+    init_social_budget: float,
+) -> Dict[str, Any]:
+    bh_trace: Dict[str, List[float]] = {}
+    af_trace: Dict[str, List[float]] = {}
+    health_trace: Dict[str, List[float]] = {}
+    admin_trace: Dict[str, List[int]] = {}
+
+    for agent in env.possible_agents:
+        peh = env.peh_agents[env.agent_name_mapping[agent]]
+        caps = env.capabilities.get(agent, {}) or {}
+        bh_trace[agent] = [float(initial_cap_bh[agent]), float(caps.get("Bodily Health", np.nan))]
+        af_trace[agent] = [float(initial_cap_af[agent]), float(caps.get("Affiliation", np.nan))]
+        health_trace[agent] = [float(initial_health[agent]), float(peh.health_state)]
+        admin_trace[agent] = [int(initial_admin[agent] == "registered"), int(peh.administrative_state == "registered")]
+
+    return {
+        "scenario": scenario,
+        "seed": seed,
+        "env": copy.deepcopy(env),
+        "bh_trace": bh_trace,
+        "af_trace": af_trace,
+        "health_trace": health_trace,
+        "admin_trace": admin_trace,
+        "init_admin": dict(initial_admin),
+        "init_trust": dict(initial_trust),
+        "init_health_budget": float(init_health_budget),
+        "init_social_budget": float(init_social_budget),
+    }
+
+
+def build_snapshot_summary(cfg: ExperimentConfig, artifact: Dict[str, Any]) -> Dict[str, Any]:
+    bh_init_all: List[float] = []
+    bh_final_all: List[float] = []
+    grouped_af_init = {group: [] for group in DEFAULT_GROUP_ORDER}
+    grouped_af_final = {group: [] for group in DEFAULT_GROUP_ORDER}
+    health_init: List[float] = []
+    health_final: List[float] = []
+    admin_init: List[int] = []
+    admin_final: List[int] = []
+
+    for agent, bh_trace in artifact["bh_trace"].items():
+        group = group_key_from_initial(artifact["init_admin"], artifact["init_trust"], agent)
+        bh_init_all.append(float(bh_trace[0]))
+        bh_final_all.append(float(bh_trace[-1]))
+        grouped_af_init[group].append(float(artifact["af_trace"][agent][0]))
+        grouped_af_final[group].append(float(artifact["af_trace"][agent][-1]))
+        health_init.append(float(artifact["health_trace"][agent][0]))
+        health_final.append(float(artifact["health_trace"][agent][-1]))
+        admin_init.append(int(artifact["admin_trace"][agent][0]))
+        admin_final.append(int(artifact["admin_trace"][agent][-1]))
+
+    env = artifact["env"]
+    return {
+        "capabilities": {
+            "bodily_health_all": _single_stats(bh_init_all, bh_final_all),
+            "affiliation_groups": {
+                group: _single_stats(grouped_af_init[group], grouped_af_final[group]) for group in DEFAULT_GROUP_ORDER
+            },
+        },
+        "functionings": {
+            "Healthy": _single_stats(
+                [1.0 if v >= cfg.healthy_threshold else 0.0 for v in health_init],
+                [1.0 if v >= cfg.healthy_threshold else 0.0 for v in health_final],
+            ),
+            "Registered": _single_stats([float(v) for v in admin_init], [float(v) for v in admin_final]),
+        },
+        "costs": {
+            "healthcare_spend": {
+                "mean": float(artifact["init_health_budget"] - env.context.healthcare_budget),
+                "std": 0.0,
+            },
+            "social_service_spend": {
+                "mean": float(artifact["init_social_budget"] - env.context.social_service_budget),
+                "std": 0.0,
+            },
+        },
+    }
+
+
+def collect_policy_snapshots(
+    cfg: ExperimentConfig,
+    profiles: List[Dict[str, Any]],
+    q_tables: Dict[str, np.ndarray],
+    *,
+    policy_on: bool,
+    seed: int,
+    snapshot_interval: int,
+) -> List[Dict[str, Any]]:
+    phase = "ON" if policy_on else "OFF"
+    eval_seed = seed * 100_000 + 50_000
+    env = build_env(cfg, profiles, policy_on=policy_on, max_steps=cfg.eval_max_steps)
+    reset_env(env, eval_seed, profiles)
+
+    initial_admin: Dict[str, str] = {}
+    initial_trust: Dict[str, str] = {}
+    initial_health: Dict[str, float] = {}
+    for agent in env.possible_agents:
+        peh = env.peh_agents[env.agent_name_mapping[agent]]
+        initial_admin[agent] = peh.administrative_state
+        initial_trust[agent] = getattr(peh, "trust_type", "MODERATE_TRUST")
+        initial_health[agent] = float(peh.health_state)
+
+    init_health_budget = float(env.context.healthcare_budget)
+    init_social_budget = float(env.context.social_service_budget)
+    initial_cap_bh, initial_cap_af = initialize_capabilities(env)
+
+    snapshots: List[Dict[str, Any]] = []
+
+    def append_snapshot(step: int) -> None:
+        artifact = build_snapshot_artifact(
+            env,
+            scenario=phase,
+            seed=seed,
+            initial_admin=initial_admin,
+            initial_trust=initial_trust,
+            initial_health=initial_health,
+            initial_cap_bh=initial_cap_bh,
+            initial_cap_af=initial_cap_af,
+            init_health_budget=init_health_budget,
+            init_social_budget=init_social_budget,
+        )
+        snapshots.append(
+            {
+                "scenario": phase,
+                "step": step,
+                "artifact": artifact,
+                "summary": build_snapshot_summary(cfg, artifact),
+            }
+        )
+
+    append_snapshot(0)
+    total_steps = 0
+    while env.agents and total_steps < cfg.eval_max_steps:
+        total_steps += 1
         agent = env.agent_selection
-        
-        if agent not in q_tables:
-            action = env.action_space(agent).sample()
-        else:
-            idx = env.agent_name_mapping[agent]
-            peh_agent = env.peh_agents[idx]
-            obs = env.observe(agent)
-            state = get_state(obs, peh_agent)
-            mask = action_mask_from_classify(env, agent)
-            action = masked_argmax(q_tables[agent][state], mask)
-        
+        if env.dones.get(agent, False):
+            env.step(None)
+            continue
+
+        state = state_of(env, agent, cfg)
+        mask = action_mask_from_classify(env, agent)
+        action = masked_argmax(q_tables[agent][state], mask)
         env.step(action)
-        step_count += 1
-        
-        for ag in env.possible_agents:
-            idx = env.agent_name_mapping[ag]
-            peh = env.peh_agents[idx]
-            
-            health_trace[ag].append(peh.health_state)
-            admin_trace[ag].append(1 if peh.administrative_state == "registered" else 0)
-            
-            if hasattr(env, 'capabilities') and ag in env.capabilities:
-                caps = env.capabilities[ag]
-                bh_trace[ag].append(1.0 - float(caps.get("Being able to have good health", 0)))
-                af_trace[ag].append(1.0 - float(caps.get("Being able to have adequate shelter", 0)))
-            else:
-                bh_trace[ag].append(1.0 if peh.health_state >= 3.0 else 0.0)
-                af_trace[ag].append(1.0 if peh.administrative_state == "registered" else 0.5)
-        
-        # ✅ Usa el paràmetre snapshot_interval
-        if step_count % snapshot_interval == 0 or not env.agents:
-            snapshots.append({
-                'step': step_count,
-                'bh_trace': {k: list(v) for k, v in bh_trace.items()},
-                'af_trace': {k: list(v) for k, v in af_trace.items()},
-                'health_trace': {k: list(v) for k, v in health_trace.items()},
-                'admin_trace': {k: list(v) for k, v in admin_trace.items()},
-            })
-    
-    return snapshots, init_admin, init_trust, init_health_budget, init_social_budget
+
+        if total_steps % snapshot_interval == 0 or not env.agents or total_steps == cfg.eval_max_steps:
+            append_snapshot(total_steps)
+
+    return snapshots
 
 
-def fig_to_array(fig):
-    """Convert matplotlib figure to numpy array (RGB only)."""
-    # Force a draw to ensure everything is rendered
+def fig_to_rgb(fig: plt.Figure) -> np.ndarray:
     fig.canvas.draw()
-    
-    # Get the RGBA buffer from the figure
-    buf = fig.canvas.buffer_rgba()
-    # Convert to numpy array
-    img_array = np.asarray(buf)
-    
-    # Convert RGBA to RGB (remove alpha channel)
-    if img_array.shape[-1] == 4:
-        img_array = img_array[:, :, :3]
-    
-    # Ensure uint8
-    img_array = img_array.astype(np.uint8)
-    
-    return img_array
+    return np.asarray(fig.canvas.buffer_rgba())[:, :, :3].astype(np.uint8)
 
-def create_comparison_evolution_gif(run_dir, output_name="policy_evolution_comparison.gif", 
-                                   output_format="gif", max_steps=100, 
-                                   snapshot_interval=2, debug_frames=False):
-    """
-    Generate evolution video/GIF.
-    
-    Args:
-        output_format: 'gif' or 'mp4'
-    """
-    
-    q_tables_on, q_tables_off, profiles = load_q_tables_and_profiles(run_dir)
-    
-    size = 7
-    num_peh = len(profiles)
-    num_sw = 15
-    
-    print("Setting up environments...")
-    ctx_on = Context(grid_size=size)
-    ctx_on.set_scenario(policy_inclusive_healthcare=True)
-    env_on = GridMAInequityEnv(
-        context=ctx_on, render_mode="rgb_array", size=size,
-        num_peh=num_peh, num_social_agents=num_sw,
-        peh_profiles=profiles, max_steps=150
-    )
-    env_on.reset(options={"peh_profiles": profiles})
-    
-    ctx_off = Context(grid_size=size)
-    ctx_off.set_scenario(policy_inclusive_healthcare=False)
-    env_off = GridMAInequityEnv(
-        context=ctx_off, render_mode="rgb_array", size=size,
-        num_peh=num_peh, num_social_agents=num_sw,
-        peh_profiles=profiles, max_steps=150
-    )
-    env_off.reset(options={"peh_profiles": profiles})
-    
-    print("Running POLICY ON simulation...")
-    snapshots_on, init_admin_on, init_trust_on, init_hb_on, init_sb_on = \
-        run_simulation_and_track(env_on, q_tables_on, max_steps=max_steps, 
-                                snapshot_interval=snapshot_interval)
-    
-    print("Running POLICY OFF simulation...")
-    snapshots_off, init_admin_off, init_trust_off, init_hb_off, init_sb_off = \
-        run_simulation_and_track(env_off, q_tables_off, max_steps=max_steps,
-                                snapshot_interval=snapshot_interval)
-    
-    print(f"Generating {len(snapshots_on)} frames...")
-    frames = []
-    
-    if debug_frames:
-        debug_dir = os.path.join(run_dir, "debug_frames")
-        os.makedirs(debug_dir, exist_ok=True)
-    
-    for i, (snap_on, snap_off) in enumerate(zip(snapshots_on, snapshots_off)):
-        print(f"  Frame {i+1}/{len(snapshots_on)} (step {snap_on['step']})")
-        
-        plot_policy_summary_comparison(
-            env_on=env_on,
-            bh_on=snap_on['bh_trace'],
-            af_on=snap_on['af_trace'],
-            health_on=snap_on['health_trace'],
-            admin_on=snap_on['admin_trace'],
-            init_admin_on=init_admin_on,
-            init_trust_on=init_trust_on,
-            init_health_budget_on=init_hb_on,
-            init_social_budget_on=init_sb_on,
-            
-            env_off=env_off,
-            bh_off=snap_off['bh_trace'],
-            af_off=snap_off['af_trace'],
-            health_off=snap_off['health_trace'],
-            admin_off=snap_off['admin_trace'],
-            init_admin_off=init_admin_off,
-            init_trust_off=init_trust_off,
-            init_health_budget_off=init_hb_off,
-            init_social_budget_off=init_sb_off,
-            
-            title_on=f"Policy ON - Step {snap_on['step']}",
-            title_off=f"Policy OFF - Step {snap_off['step']}",
-            show_social_workers=True,
+
+def render_frame(
+    cfg: ExperimentConfig,
+    on_snapshot: Dict[str, Any],
+    off_snapshot: Dict[str, Any],
+) -> np.ndarray:
+    fig = plt.figure(figsize=(14.8, 10.8))
+    gs = fig.add_gridspec(2, 2, width_ratios=[0.92, 1.28], hspace=0.24, wspace=0.30)
+    xlim = (0.0, 1.03)
+
+    for row_idx, payload in enumerate([on_snapshot, off_snapshot]):
+        scenario = payload["scenario"]
+        artifact = payload["artifact"]
+        summary_stats = payload["summary"]
+        final_color = "#1b9e77" if scenario == "ON" else "#d95f02"
+
+        ax_grid = fig.add_subplot(gs[row_idx, 0])
+        _draw_environment_panel(
+            ax_grid,
+            artifact,
+            title=f"Policy {scenario} - step {payload['step']}",
+            show_legend=(row_idx == 0),
+            font_big=15.0,
+            font_small=10.4,
         )
-        
-        # Get current figure and convert to array
-        fig = plt.gcf()
-        fig.canvas.draw()
-        
-        # Convert to RGB array
-        buf = fig.canvas.buffer_rgba()
-        img_array = np.asarray(buf)[:, :, :3].astype(np.uint8)
-        
-        # Debug: save individual frame
-        if debug_frames:
-            frame_path = os.path.join(debug_dir, f"frame_{i:03d}.png")
-            Image.fromarray(img_array).save(frame_path)
-        
-        frames.append(img_array)
-        plt.close(fig)
-    
-    print(f"\nSaving as {output_format.upper()}...")
-    
-    # ✅ NOMÉS UNA VEGADA - Save based on format
-    if output_format.lower() == 'mp4':
-        output_path = os.path.join(run_dir, output_name.replace('.gif', '.mp4'))
-        imageio.mimsave(output_path, frames, fps=2, codec='libx264', 
-                       quality=8, pixelformat='yuv420p')
-    else:  # gif
-        output_path = os.path.join(run_dir, output_name)
-        pil_frames = [Image.fromarray(f) for f in frames]
-        pil_frames[0].save(
-            output_path,
-            save_all=True,
-            append_images=pil_frames[1:],
-            duration=500,  # ms per frame
-            loop=0,
-            optimize=False
+
+        right = gs[row_idx, 1].subgridspec(3, 1, height_ratios=[1.18, 0.92, 0.46], hspace=0.58)
+        ax_caps = fig.add_subplot(right[0, 0])
+        ax_fun = fig.add_subplot(right[1, 0])
+        ax_cost = fig.add_subplot(right[2, 0])
+
+        cap_rows = [
+            ("BH all", summary_stats["capabilities"]["bodily_health_all"]),
+            ("AF non-reg low", summary_stats["capabilities"]["affiliation_groups"]["NONREG_LOW"]),
+            ("AF non-reg mod", summary_stats["capabilities"]["affiliation_groups"]["NONREG_MOD"]),
+            ("AF reg low", summary_stats["capabilities"]["affiliation_groups"]["REG_LOW"]),
+            ("AF reg mod", summary_stats["capabilities"]["affiliation_groups"]["REG_MOD"]),
+        ]
+        _plot_dumbbell_panel(
+            ax_caps,
+            cap_rows,
+            title="Capabilities (agents' actions)",
+            final_color=final_color,
+            xlim=xlim,
+            show_legend=True,
+            font_med=13.8,
+            font_small=11.0,
         )
-    
-    print(f"✓ {'Video' if output_format == 'mp4' else 'GIF'} saved: {output_path}")
-    
-    if debug_frames:
-        print(f"✓ Debug frames saved in: {debug_dir}")
+
+        fun_rows = [
+            ("Healthy", summary_stats["functionings"]["Healthy"]),
+            ("Registered", summary_stats["functionings"]["Registered"]),
+        ]
+        _plot_dumbbell_panel(
+            ax_fun,
+            fun_rows,
+            title="Functionings (agents' state)",
+            final_color=final_color,
+            xlim=xlim,
+            show_legend=False,
+            font_med=13.8,
+            font_small=11.0,
+        )
+        ax_fun.set_xlabel("Population (%)", fontsize=11.0, labelpad=5)
+        _draw_cost_line(
+            ax_cost,
+            summary_stats,
+            scenario=scenario,
+            font_med=12.2,
+            font_small=11.0,
+        )
+
+    image = fig_to_rgb(fig)
+    plt.close(fig)
+    return image
+
+
+def create_gif(cfg: ExperimentConfig, output_path: Path, *, snapshot_interval: int) -> Path:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    profiles = load_profiles(cfg.num_peh)
+    irl = load_irl(str(PROJECT_ROOT / "output" / "irl_calibration_results_raval.json"))
+
+    q_tables_on, _, _ = train_policy(
+        cfg,
+        profiles,
+        policy_on=True,
+        seed=cfg.seeds[0],
+        irl=irl,
+        feature_cols=DEFAULT_FEATURE_COLS,
+    )
+    q_tables_off, _, _ = train_policy(
+        cfg,
+        profiles,
+        policy_on=False,
+        seed=cfg.seeds[0],
+        irl=irl,
+        feature_cols=DEFAULT_FEATURE_COLS,
+    )
+
+    on_snapshots = collect_policy_snapshots(
+        cfg, profiles, q_tables_on, policy_on=True, seed=cfg.seeds[0], snapshot_interval=snapshot_interval
+    )
+    off_snapshots = collect_policy_snapshots(
+        cfg, profiles, q_tables_off, policy_on=False, seed=cfg.seeds[0], snapshot_interval=snapshot_interval
+    )
+
+    frame_count = min(len(on_snapshots), len(off_snapshots))
+    frames = [Image.fromarray(render_frame(cfg, on_snapshots[i], off_snapshots[i])) for i in range(frame_count)]
+    frames[0].save(
+        output_path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=450,
+        loop=0,
+        optimize=False,
+    )
+
+    meta = {
+        "generated_at": datetime.now().isoformat(),
+        "config": asdict(cfg),
+        "snapshot_interval": snapshot_interval,
+        "frame_count": frame_count,
+        "output_gif": str(output_path),
+    }
+    output_path.with_suffix(".json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return output_path
+
+
+def main() -> None:
+    args = parse_args()
+    cfg = build_cfg(args)
+    output_path = Path(args.output)
+    result = create_gif(cfg, output_path, snapshot_interval=args.snapshot_interval)
+    print(f"Saved Figure 3 style policy evolution GIF to: {result}")
 
 
 if __name__ == "__main__":
-    import sys
-    
-    if len(sys.argv) > 1:
-        run_dir = sys.argv[1]
-    else:
-        output_dirs = [os.path.join("output", d) for d in os.listdir("output")
-                      if os.path.isdir(os.path.join("output", d)) and d.startswith("run_")]
-        if not output_dirs:
-            print("❌ No run directories found in output/")
-            sys.exit(1)
-        run_dir = max(output_dirs, key=os.path.getctime)
-    
-    print(f"Using run directory: {run_dir}")
-    
-    # ✅ GENERA GIF (no MP4)
-    create_comparison_evolution_gif(
-        run_dir,
-        output_name="policy_evolution_comparison.gif",
-        output_format="gif",  # ← IMPORTANT: especifica "gif"
-        max_steps=100,
-        snapshot_interval=2,  # 1 frame cada 2 steps
-        debug_frames=False
-    )
-    
-    print("\n✓ Evolution GIF generated successfully!")
+    main()

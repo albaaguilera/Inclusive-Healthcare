@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-04-23T09:06:40.979474",
+  "config": {
+    "size": 7,
+    "num_peh": 16,
+    "num_sw": 20,
+    "episodes": 400,
+    "train_max_steps": 100,
+    "eval_max_steps": 120,
+    "alpha": 0.2,
+    "gamma": 0.99,
+    "epsilon": 0.1,
+    "eps_min": 0.01,
+    "eps_decay": 0.995,
+    "pbrs_beta": 0.02,
+    "max_enc": 10,
+    "max_noneng": 10,
+    "healthy_threshold": 3.0,
+    "seeds": [
+      0
+    ]
+  },
+  "snapshot_interval": 8,
+  "frame_count": 6,
+  "output_gif": "C:\\Users\\albaa\\Escriptori\\AABM\\Inclusive Healthcare Simulation\\CASimulation\\output\\paper_selected\\policy_evolution_figure3_style_n16.gif"
+}

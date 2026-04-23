@@ -65,7 +65,7 @@ class Context:
         self.social_service_budget        = resources.get("Social service budget", 5000)
         self.locations                     = Locations.copy()
         self.grid_size                    = grid_size
-        self.np_random = np.random
+        self.np_random = np.random.default_rng()
         self._init_locations()
 
     def _init_locations(self):
@@ -106,8 +106,8 @@ class Context:
         # rectangular block
         base = np.array(loc["pos"])
         w, h = loc.get("size", (1, 1))
-        dx = self.np_random.randint(0, w)
-        dy = self.np_random.randint(0, h)
+        dx = int(self.np_random.integers(0, w))
+        dy = int(self.np_random.integers(0, h))
         return base + np.array([dx, dy])
 
     def to_dict(self):
@@ -264,4 +264,3 @@ def update_all_capability_scores(env):
             "Bodily Health": env.capabilities[ag]["Bodily Health"],
             "Affiliation": env.capabilities[ag]["Affiliation"] 
         }
-

@@ -30,11 +30,13 @@ class GridMAInequityEnv(AECEnv):
         self.peh_profiles = peh_profiles
 
         self.max_cycles = int(max_steps)
+        self.np_random = np.random.default_rng()
+        self.context.np_random = self.np_random
 
         if self.num_social_agents <= self.num_peh:
-            self.social_assignments = np.random.choice(self.num_peh, size=self.num_social_agents, replace=False)
+            self.social_assignments = self.np_random.choice(self.num_peh, size=self.num_social_agents, replace=False)
         else:
-            self.social_assignments = np.random.choice(self.num_peh, size=self.num_social_agents, replace=True)
+            self.social_assignments = self.np_random.choice(self.num_peh, size=self.num_social_agents, replace=True)
 
         self.possible_agents = [f"peh_{i}" for i in range(self.num_peh)]
         self.peh_agents = [PEHAgent(start_loc=np.array([-1, -1], dtype=int)) for _ in range(self.num_peh)]
@@ -134,12 +136,15 @@ class GridMAInequityEnv(AECEnv):
         # -----------------------------
         self.np_random = np.random.default_rng(seed)
         rng = self.np_random
+        self.context.np_random = rng
 
         self.possible_agents = [f"peh_{i}" for i in range(self.num_peh)]
         self.agents = self.possible_agents[:]
         self.agent_selector = agent_selector(self.agents)
         self.agent_selection = self.agent_selector.next()
         self.agent_name_mapping = {name: i for i, name in enumerate(self.agents)}
+        for idx, name in enumerate(self.agents):
+            self.action_spaces[name].seed(None if seed is None else seed + idx)
 
         self.dones = {a: False for a in self.possible_agents}
         self.terminations = {a: False for a in self.possible_agents}
@@ -218,9 +223,10 @@ class GridMAInequityEnv(AECEnv):
                     trust_type=trust,
                     personal_attributes=attrs,
                     income=income,
+                    rng=rng,
                 )
             else:
-                a = PEHAgent(start_loc=loc)
+                a = PEHAgent(start_loc=loc, rng=rng)
 
             self.peh_agents.append(a)
 
@@ -273,7 +279,7 @@ class GridMAInequityEnv(AECEnv):
                         continue
 
                     if xy not in occupied_sw:
-                        self.socserv_agents.append(SocServAgent(np.array(xy, dtype=int)))
+                        self.socserv_agents.append(SocServAgent(np.array(xy, dtype=int), rng=rng))
                         occupied_sw.add(xy)
                         placed = True
                         break
@@ -282,14 +288,14 @@ class GridMAInequityEnv(AECEnv):
                     for xy in _adjacent_cells(peh_loc, spawn_radius):
                         if xy in forbidden or xy in peh_cells:
                             continue
-                        self.socserv_agents.append(SocServAgent(np.array(xy, dtype=int)))
+                        self.socserv_agents.append(SocServAgent(np.array(xy, dtype=int), rng=rng))
                         placed = True
                         break
 
             if not placed:
                 # fallback: oficina
                 loc = self._service_cell("SocialService")
-                self.socserv_agents.append(SocServAgent(loc))
+                self.socserv_agents.append(SocServAgent(loc, rng=rng))
 
         if self.render_mode == "human":
             render_frame(self)
@@ -404,7 +410,7 @@ class GridMAInequityEnv(AECEnv):
         key = (old_h, admin, adj, action)  
         transitions = self.health_P[idx][key]
         probs = [p for p, _, _ in transitions]
-        chosen = np.random.choice(len(transitions), p=probs)
+        chosen = self.np_random.choice(len(transitions), p=probs)
         _, new_h, reward = transitions[chosen]
 
 
@@ -499,7 +505,8 @@ class GridMAInequityEnv(AECEnv):
         info = self.context.locations[name]
         base = np.array(info["pos"], dtype=int)
         size = info.get("size", (1, 1))
-        dx, dy = np.random.randint(0, size[0]), np.random.randint(0, size[1])
+        dx = int(self.np_random.integers(0, size[0]))
+        dy = int(self.np_random.integers(0, size[1]))
 
         return base + np.array([dx, dy])
     
